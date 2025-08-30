@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务器文件浏览器</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        :root {
+            --primary-color: #4c8bf5;
+            --secondary-color: #3a75d4;
+            --background-dark: rgba(0, 0, 0, 0.7);
+            --text-light: #fff;
+            --text-gray: #ccc;
+            --error-color: #f44336;
+            --success-color: #4caf50;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: var(--text-light);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: var(--background-dark);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            position: relative;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 70%;
+        }
+        
+        .logo i {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+        }
+        
+        .logo h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .btn:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+        
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.8rem;
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar h2 {
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .folder-list {
+            list-style: none;
+            margin-bottom: 15px;
+        }
+        
+        .folder-list li {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .folder-list li:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .folder-list li.active {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .recent-folders {
+            margin-top: 15px;
+        }
+        
+        .recent-list {
+            list-style: none;
+        }
+        
+        .recent-list li {
+            padding: 8px 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .recent-list li:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .content {
+            flex: 1;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .path-navigation {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+        
+        .path-segment {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .path-segment a {
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .path-segment span {
+            color: var(--text-gray);
+        }
+        
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            flex-wrap: wrap;
+        }
+        
+        .action-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .file-list-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            max-height: 78vh; /* 限制文件列表最大高度 */
+        }
+        
+        .file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+        }
+        
+        .file-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 120px;
+        }
+        
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+        
+        .file-icon {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+        }
+        
+        .file-name {
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+        
+        .file-info {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.65rem;
+            color: var(--text-gray);
+        }
+        
+        .player-container {
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+        }
+        
+        .player-container h2 {
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .quality-selector {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+        }
+        
+        video, audio {
+            width: 100%;
+            border-radius: 5px;
+            max-height: 40vh;
+        }
+        
+        .image-view {
+            text-align: center;
+        }
+        
+        .image-view img {
+            max-width: 100%;
+            max-height: 40vh;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        .welcome-container {
+            text-align: center;
+            padding: 30px 15px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .welcome-container h1 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+        
+        .welcome-container p {
+            font-size: 1rem;
+            margin-bottom: 20px;
+            color: var(--text-gray);
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .feature-list {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            width: 150px;
+            text-align: center;
+        }
+        
+        .feature i {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .feature h3 {
+            margin-bottom: 8px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        .feature p {
+            font-size: 0.8rem;
+            margin-bottom: 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            left: 15px;
+            padding: 12px 15px;
+            background: var(--success-color);
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: translateY(-100px);
+            transition: transform 0.3s;
+            z-index: 1000;
+            text-align: center;
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+        }
+        
+        .notification.error {
+            background: var(--error-color);
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 150px;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        .error-container {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .error-title {
+            color: var(--error-color);
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .error-solution {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .error-solution h4 {
+            margin-bottom: 8px;
+            color: var(--success-color);
+            font-size: 0.9rem;
+        }
+        
+        .error-solution ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+        }
+        
+        .error-solution li {
+            margin-bottom: 6px;
+        }
+        
+        /* 认证错误样式 */
+        .auth-error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid var(--error-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px;
+            text-align: center;
+        }
+        
+        .auth-error h2 {
+            color: var(--error-color);
+            margin-bottom: 15px;
+        }
+        
+        .auth-error p {
+            margin-bottom: 20px;
+        }
+        
+        /* 平板设备样式 */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 240px;
+            }
+            
+            .file-list {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            
+            .feature {
+                width: 130px;
+                padding: 12px;
+            }
+            
+            .logo h1 {
+                font-size: 1.2rem;
+            }
+        }
+        
+        /* 手机设备样式 */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            .container {
+                height: calc(100vh - 10px);
+                border-radius: 10px;
+            }
+            
+            header {
+                padding: 12px;
+            }
+            
+            .logo h1 {
+                font-size: 1.1rem;
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+            }
+            
+            .sidebar {
+                position: absolute;
+                top: 60px;
+                left: 0;
+                bottom: 0;
+                z-index: 100;
+                transform: translateX(-100%);
+                width: 280px;
+                box-shadow: 3px 0 10px rgba(0, 0, 0, 0.3);
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                position: relative;
+            }
+            
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 90;
+            }
+            
+            .overlay.open {
+                display: block;
+            }
+            
+            .path-navigation {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .actions {
+                margin-left: 0;
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .action-btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .file-list-container {
+                max-height: 50vh; /* 移动设备上更小的高度 */
+            }
+            
+            .file-list {
+                grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+                gap: 10px;
+            }
+            
+            .file-item {
+                min-height: 110px;
+                padding: 10px;
+            }
+            
+            .file-icon {
+                font-size: 2rem;
+            }
+            
+            .welcome-container {
+                padding: 20px 10px;
+            }
+            
+            .welcome-container h1 {
+                font-size: 1.5rem;
+            }
+            
+            .welcome-container p {
+                font-size: 0.9rem;
+            }
+            
+            .feature-list {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            
+            .feature {
+                width: 100%;
+                max-width: 300px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .player-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                margin: 10px;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
+
+            .player-container video,
+            .player-container audio {
+                max-height: 25vh;
+            }
+            
+            .player-container h2 {
+                font-size: 1rem;
+            }
+            
+            video, audio {
+                max-height: 30vh;
+            }
+            
+            .image-view img {
+                max-height: 30vh;
+            }
+            
+            .btn {
+                padding: 10px 12px;
+                font-size: 0.85rem;
+            }
+            
+            .auth-error {
+                margin: 10px;
+                padding: 15px;
+            }
+        }
+        
+        /* 小屏手机样式 */
+        @media (max-width: 480px) {
+            .file-list {
+                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            }
+            
+            .file-item {
+                min-height: 100px;
+            }
+            
+            .file-icon {
+                font-size: 1.8rem;
+            }
+            
+            .file-name {
+                font-size: 0.75rem;
+            }
+            
+            .logo h1 {
+                font-size: 1rem;
+            }
+            
+            .path-segment a {
+                font-size: 0.85rem;
+            }
+            
+            .welcome-container h1 {
+                font-size: 1.3rem;
+            }
+        }
+        
+        /* 横屏模式优化 */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .container {
+                height: auto;
+                min-height: 100vh;
+            }
+            
+            .file-list {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+                max-height: 200px;
+            }
+            
+            .sidebar {
+                overflow-y: auto;
+            }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-server"></i>
+                <h1>服务器文件浏览器</h1>
+            </div>
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="user-info">
+                <div class="server-info">
+                    <span id="serverAddress">服务器地址: 192.168.1.100</span>
+                    <button class="btn btn-sm" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> <span class="btn-text">退出登录</span>
+                    </button>
+                </div>
+                <button class="btn btn-sm" onclick="refresh()">
+                    <i class="fas fa-sync-alt"></i> <span class="btn-text">刷新</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar" id="sidebar">
+                <h2><i class="fas fa-folders"></i> 服务器文件夹</h2>
+                <ul id="folderList" class="folder-list">
+                    <li class="active" onclick="selectFolder('movies')">
+                        <i class="fas fa-film"></i>
+                        <span>电影库</span>
+                        <span class="file-info">/mnt/media/movies</span>
+                    </li>
+                    <li onclick="selectFolder('music')">
+                        <i class="fas fa-music"></i>
+                        <span>音乐库</span>
+                        <span class="file-info">/mnt/media/music</span>
+                    </li>
+                    <li onclick="selectFolder('photos')">
+                        <i class="fas fa-image"></i>
+                        <span>图片库</span>
+                        <span class="file-info">/mnt/media/photos</span>
+                    </li>
+                    <li onclick="selectFolder('documents')">
+                        <i class="fas fa-file"></i>
+                        <span>文档库</span>
+                        <span class="file-info">/mnt/media/documents</span>
+                    </li>
+                    <li onclick="selectFolder('downloads')">
+                        <i class="fas fa-download"></i>
+                        <span>下载文件夹</span>
+                        <span class="file-info">/mnt/media/downloads</span>
+                    </li>
+                </ul>
+
+                <div class="recent-folders">
+                    <h2><i class="fas fa-history"></i> 最近访问</h2>
+                    <ul id="recentList" class="recent-list">
+                        <li>暂无最近访问</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+            <div class="content">
+                <!-- 认证错误提示 -->
+                <div id="authError" class="auth-error hidden">
+                    <h2><i class="fas fa-exclamation-triangle"></i> 认证错误</h2>
+                    <p>您的登录会话已过期或无效，请重新登录。</p>
+                    <button class="btn" onclick="goToLogin()">
+                        <i class="fas fa-sign-in-alt"></i> 返回登录页面
+                    </button>
+                </div>
+                
+                <div id="welcomeScreen" class="welcome-container">
+                    <h1>服务器文件浏览器</h1>
+                    <p>通过此应用，您可以浏览和访问服务器上的媒体文件。支持外部设备连接，随时随地访问您的媒体库。</p>
+                    
+                    <div class="feature-list">
+                        <div class="feature">
+                            <i class="fas fa-network-wired"></i>
+                            <h3>远程访问</h3>
+                            <p>从任何设备访问服务器文件</p>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-photo-video"></i>
+                            <h3>多媒体支持</h3>
+                            <p>支持多种媒体格式</p>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-play-circle"></i>
+                            <h3>流媒体播放</h3>
+                            <p>直接播放服务器上的媒体文件</p>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" onclick="selectFolder('movies')">
+                        <i class="fas fa-film"></i> 开始浏览电影库
+                    </button>
+                </div>
+
+                <div id="browserScreen" class="hidden">
+                    <div id="errorContainer" class="error-container hidden">
+                        <div class="error-title">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span id="errorTitle">连接错误</span>
+                        </div>
+                        <p id="errorMessage">无法连接到服务器或访问文件夹。</p>
+                        <div class="error-solution">
+                            <h4>解决方案：</h4>
+                            <ol>
+                                <li>检查服务器是否正在运行</li>
+                                <li>确认您有访问权限</li>
+                                <li>检查网络连接</li>
+                                <li>联系系统管理员</li>
+                            </ol>
+                            <button class="btn btn-outline" onclick="hideError()">
+                                <i class="fas fa-times"></i> 关闭提示
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="path-navigation">
+                        <div class="path-segment">
+                            <a onclick="goToRoot()">根目录</a>
+                            <span>></span>
+                            <a id="currentFolder">电影库</a>
+                        </div>
+                        <div class="actions">
+                            <button class="action-btn" onclick="refresh()">
+                                <i class="fas fa-sync-alt"></i> <span>刷新</span>
+                            </button>
+                            <button class="action-btn" onclick="goUp()">
+                                <i class="fas fa-level-up-alt"></i> <span>上级目录</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 文件列表容器 -->
+                    <div id="fileListContainer" class="file-list-container">
+                        <div id="fileList" class="file-list">
+                            <div class="loading">
+                                <div class="loading-spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="playerSection" class="player-container hidden">
+                        <h2>
+                            <span id="playerTitle">播放器</span>
+                            <select id="qualitySelector" class="quality-selector" onchange="changeQuality()">
+                                <option value="original">原始质量</option>
+                                <option value="1080p">1080p 高清</option>
+                                <option value="720p">720p 标准</option>
+                                <option value="480p">480p 流畅</option>
+                            </select>
+                        </h2>
+                        <div id="videoPlayer">
+                            <video id="videoElement" controls></video>
+                        </div>
+                        <div id="audioPlayer" class="hidden">
+                            <audio id="audioElement" controls></audio>
+                        </div>
+                        <div id="imageView" class="image-view hidden">
+                            <img id="imageElement" src="" alt="图片预览">
+                        </div>
+                        <div id="documentView" class="hidden">
+                            <p>文档预览功能需要额外配置。您可以选择下载文档：</p>
+                            <button class="btn" onclick="downloadFile()">
+                                <i class="fas fa-download"></i> 下载文档
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification">欢迎使用服务器文件浏览器</div>
+
+    <script>
+        // 全局变量
+        let AUTH_TOKEN = localStorage.getItem("authToken") || null;
+        let SERVER_BASE_URL = localStorage.getItem("serverBaseUrl") || "";
+        let currentFolder = 'movies';
+        let currentPath = '';
+        let currentFile = null;
+        let isMobileSidebarOpen = false;
+        
+        // 固定文件夹配置
+        const FIXED_FOLDERS = {
+            'movies': {
+                name: '电影库',
+                path: '/mnt/media/movies',
+                icon: 'fa-film'
+            },
+            'music': {
+                name: '音乐库',
+                path: '/mnt/media/music',
+                icon: 'fa-music'
+            },
+            'photos': {
+                name: '图片库',
+                path: '/mnt/media/photos',
+                icon: 'fa-image'
+            },
+            'documents': {
+                name: '文档库',
+                path: '/mnt/media/documents',
+                icon: 'fa-file'
+            },
+            'downloads': {
+                name: '下载文件夹',
+                path: '/mnt/media/downloads',
+                icon: 'fa-download'
+            }
+        };
+
+        // 页面加载时初始化
+        document.addEventListener("DOMContentLoaded", function() {
+            // 检查认证状态
+            if (!AUTH_TOKEN) {
+                showAuthError("未检测到登录信息，请重新登录");
+                return;
+            }
+            
+            // 初始化文件浏览器
+            initFileBrowser();
+        });
+        
+        // API fetch 封装（自动带 token）
+        async function apiFetch(url, options = {}) {
+            options.headers = options.headers || {};
+            if (AUTH_TOKEN) {
+                options.headers["Authorization"] = AUTH_TOKEN;
+            }
+            
+            const response = await fetch(url, options);
+            
+            // 检查认证状态
+            if (response.status === 401) {
+                showAuthError("登录已过期，请重新登录");
+                throw new Error("未登录或会话失效");
+            }
+            
+            return response;
+        }
+        
+        // 显示认证错误
+        function showAuthError(message) {
+            document.getElementById("authError").classList.remove("hidden");
+            document.getElementById("welcomeScreen").classList.add("hidden");
+            document.getElementById("browserScreen").classList.add("hidden");
+            
+            const authError = document.getElementById("authError");
+            authError.querySelector("p").textContent = message;
+        }
+        
+        // 跳转到登录页面
+        function goToLogin() {
+            localStorage.removeItem("authToken");
+            window.location.href = "index.html";
+        }
+        
+        // 退出登录
+        function logout() {
+            if (confirm("确定要退出登录吗？")) {
+                localStorage.removeItem("authToken");
+                goToLogin();
+            }
+        }
+        
+        // 初始化文件浏览器
+        function initFileBrowser() {
+            // 显示服务器地址
+            document.getElementById('serverAddress').textContent = `服务器地址: ${window.location.hostname}`;
+            
+            // 加载最近访问列表
+            const recentList = JSON.parse(localStorage.getItem('recentFolders') || '[]');
+            updateRecentList(recentList);
+            
+            // 显示欢迎信息
+            showNotification('欢迎使用服务器文件浏览器');
+            
+            // 添加窗口大小改变监听器
+            window.addEventListener('resize', handleResize);
+            
+            // 初始处理窗口大小
+            handleResize();
+        }
+        
+        // 切换侧边栏（移动端）
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            if (window.innerWidth <= 768) {
+                isMobileSidebarOpen = !isMobileSidebarOpen;
+                
+                if (isMobileSidebarOpen) {
+                    sidebar.classList.add('open');
+                    overlay.classList.add('open');
+                } else {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                }
+            }
+        }
+        
+        // 选择文件夹
+        function selectFolder(folderId) {
+            if (!FIXED_FOLDERS[folderId]) {
+                showError('文件夹不存在', '请求的文件夹不存在于配置中。');
+                return;
+            }
+            
+            // 更新活动状态
+            document.querySelectorAll('#folderList li').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // 更新当前状态
+            currentFolder = folderId;
+            currentPath = '';
+            
+            // 显示浏览器界面
+            showBrowserScreen();
+            
+            // 浏览文件夹
+            browseFolder();
+            
+            // 在移动设备上选择文件夹后自动关闭侧边栏
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+        
+        // 浏览文件夹
+        async function browseFolder() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+            
+            try {
+                // 更新路径显示
+                updatePathDisplay();
+                
+                // 从服务器获取文件列表
+                const files = await fetchFolderContents(currentFolder, currentPath);
+                
+                // 渲染文件列表
+                renderFileList(files);
+                
+                // 隐藏错误提示
+                hideError();
+                
+                // 添加到最近访问
+                addToRecentList(currentFolder);
+            } catch (error) {
+                console.error('浏览文件夹失败:', error);
+                showError('访问失败', '无法浏览文件夹: ' + error.message);
+                fileList.innerHTML = '<div class="file-item">无法访问文件夹</div>';
+            }
+        }
+        
+        // 从服务器获取文件夹内容
+        async function fetchFolderContents(folderId, path) {
+            const folderConfig = FIXED_FOLDERS[folderId];
+            if (!folderConfig) {
+                throw new Error('文件夹配置不存在');
+            }
+            
+            // 构建API URL
+            const apiUrl = `${SERVER_BASE_URL}/api/files`;
+            const params = new URLSearchParams({
+                folder: folderId,
+                path: path
+            });
+            
+            const response = await apiFetch(`${apiUrl}?${params}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`服务器返回错误: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || '未知错误');
+            }
+            
+            return data.files || [];
+        }
+        
+        // 获取文件流URL
+        function getFileStreamUrl(file) {
+            const folderConfig = FIXED_FOLDERS[currentFolder];
+            if (!folderConfig) {
+                throw new Error('当前文件夹配置不存在');
+            }
+            
+            // 构建文件流URL
+            const apiUrl = `${SERVER_BASE_URL}/api/stream`;
+            const params = new URLSearchParams({
+                folder: currentFolder,
+                path: currentPath ? `${currentPath}/${file.name}` : file.name,
+                quality: document.getElementById('qualitySelector').value
+            });
+            
+            return `${apiUrl}?${params}`;
+        }
+
+        // 添加认证代理函数
+        function getAuthenticatedUrl(file) {
+            const folderConfig = FIXED_FOLDERS[currentFolder];
+            if (!folderConfig) {
+                throw new Error('当前文件夹配置不存在');
+            }
+            
+            const apiUrl = `${SERVER_BASE_URL}/api/stream`;
+            const params = new URLSearchParams({
+                folder: currentFolder,
+                path: currentPath ? `${currentPath}/${file.name}` : file.name,
+                token: AUTH_TOKEN,  // 直接传递token
+                quality: document.getElementById('qualitySelector').value
+            });
+            
+            return `${apiUrl}?${params}`;
+        }
+        
+        // 更新路径显示
+        function updatePathDisplay() {
+            const pathElement = document.getElementById('currentFolder');
+            if (currentPath === '') {
+                pathElement.textContent = FIXED_FOLDERS[currentFolder].name;
+            } else {
+                pathElement.textContent = currentPath.split('/').pop();
+            }
+        }
+        
+        // 渲染文件列表
+        function renderFileList(files) {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            
+            if (files.length === 0) {
+                fileList.innerHTML = '<div class="file-item">文件夹为空</div>';
+                return;
+            }
+            
+            // 先显示文件夹
+            files.filter(file => file.isDirectory).forEach(file => {
+                fileList.appendChild(createFolderItem(file));
+            });
+            
+            // 再显示文件
+            files.filter(file => !file.isDirectory).forEach(file => {
+                fileList.appendChild(createFileItem(file));
+            });
+        }
+        
+        // 创建文件夹项
+        function createFolderItem(folder) {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            
+            item.innerHTML = `
+                <div class="file-icon"><i class="fas fa-folder"></i></div>
+                <div class="file-name">${folder.name}</div>
+                <div class="file-info">文件夹</div>
+            `;
+            
+            item.addEventListener('click', () => {
+                currentPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+                browseFolder();
+            });
+            
+            return item;
+        }
+        
+        // 创建文件项
+        function createFileItem(file) {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            
+            // 获取文件类型和图标
+            const { icon } = getFileTypeAndIcon(file.name);
+            
+            item.innerHTML = `
+                <div class="file-icon"><i class="fas ${icon}"></i></div>
+                <div class="file-name">${file.name}</div>
+                <div class="file-info">${formatFileSize(file.size)}</div>
+            `;
+            
+            item.addEventListener('click', () => openFile(file));
+            
+            return item;
+        }
+        
+        // 获取文件类型和图标
+        function getFileTypeAndIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                return { type: 'image', icon: 'fa-file-image' };
+            } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'webm'].includes(ext)) {
+                return { type: 'video', icon: 'fa-file-video' };
+            } else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'].includes(ext)) {
+                return { type: 'audio', icon: 'fa-file-audio' };
+            } else if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+                return { type: 'document', icon: 'fa-file-pdf' };
+            } else {
+                return { type: 'other', icon: 'fa-file' };
+            }
+        }
+        
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 打开文件
+        function openFile(file) {
+            // 构建文件URL参数
+            const fullPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+            const params = new URLSearchParams({
+                folder: currentFolder,
+                path: fullPath,
+                name: file.name
+            });
+            
+            // 打开新窗口播放文件
+            const playerWindow = window.open(`player.html?${params}`, '_blank');
+            
+            // 如果浏览器阻止了弹出窗口，提示用户
+            if (!playerWindow) {
+                showNotification('请允许浏览器弹出窗口以播放媒体', true);
+            }
+        }
+        
+        // 更改视频质量
+        function changeQuality() {
+            if (!currentFile) return;
+            
+            const quality = document.getElementById('qualitySelector').value;
+            
+            // 重新加载视频
+            if (getFileTypeAndIcon(currentFile.name).type === 'video') {
+                const videoUrl = getFileStreamUrl(currentFile);
+                document.getElementById('videoElement').src = videoUrl;
+            }
+            
+            showNotification(`已切换到${quality}质量`);
+        }
+        
+        // 下载文件
+        function downloadFile() {
+            if (!currentFile) return;
+            
+            try {
+                const downloadUrl = getFileStreamUrl(currentFile);
+                
+                // 创建下载链接
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = currentFile.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showNotification('开始下载文件...');
+            } catch (error) {
+                console.error('下载文件失败:', error);
+                showError('下载失败', '无法下载文件: ' + error.message);
+            }
+        }
+        
+        // 返回上级目录
+        function goUp() {
+            if (currentPath.includes('/')) {
+                const pathParts = currentPath.split('/');
+                pathParts.pop();
+                currentPath = pathParts.join('/');
+                browseFolder();
+            } else if (currentPath) {
+                currentPath = '';
+                browseFolder();
+            }
+        }
+        
+        // 返回根目录
+        function goToRoot() {
+            currentPath = '';
+            browseFolder();
+        }
+        
+        // 刷新当前目录
+        function refresh() {
+            browseFolder();
+            showNotification('已刷新文件夹内容');
+        }
+        
+        // 添加到最近访问列表
+        function addToRecentList(folderId) {
+            let recentList = JSON.parse(localStorage.getItem('recentFolders') || '[]');
+            
+            // 如果已存在，先移除
+            recentList = recentList.filter(item => item !== folderId);
+            
+            // 添加到开头
+            recentList.unshift(folderId);
+            
+            // 限制数量
+            if (recentList.length > 5) {
+                recentList = recentList.slice(0, 5);
+            }
+            
+            // 保存到localStorage
+            localStorage.setItem('recentFolders', JSON.stringify(recentList));
+            
+            // 更新UI
+            updateRecentList(recentList);
+        }
+        
+        // 更新最近访问列表
+        function updateRecentList(recentList) {
+            const recentListElement = document.getElementById('recentList');
+            recentListElement.innerHTML = '';
+            
+            if (recentList.length === 0) {
+                recentListElement.innerHTML = '<li>暂无最近访问</li>';
+                return;
+            }
+            
+            recentList.forEach(folderId => {
+                if (FIXED_FOLDERS[folderId]) {
+                    const folder = FIXED_FOLDERS[folderId];
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <i class="fas ${folder.icon}"></i>
+                        <span>${folder.name}</span>
+                    `;
+                    li.addEventListener('click', () => {
+                        selectFolder(folderId);
+                        // 更新活动状态
+                        document.querySelectorAll('#folderList li').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        document.querySelector(`#folderList li[onclick="selectFolder('${folderId}')"]`).classList.add('active');
+                    });
+                    recentListElement.appendChild(li);
+                }
+            });
+        }
+        
+        // 显示浏览器界面
+        function showBrowserScreen() {
+            document.getElementById('welcomeScreen').classList.add('hidden');
+            document.getElementById('browserScreen').classList.remove('hidden');
+        }
+        
+        // 显示欢迎界面
+        function showWelcomeScreen() {
+            document.getElementById('welcomeScreen').classList.remove('hidden');
+            document.getElementById('browserScreen').classList.add('hidden');
+        }
+        
+        // 显示错误信息
+        function showError(title, message) {
+            const errorContainer = document.getElementById('errorContainer');
+            const errorTitle = document.getElementById('errorTitle');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+            errorContainer.classList.remove('hidden');
+        }
+        
+        // 隐藏错误信息
+        function hideError() {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.classList.add('hidden');
+        }
+        
+        // 显示通知
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.remove('error');
+            
+            if (isError) {
+                notification.classList.add('error');
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 处理窗口大小变化
+        function handleResize() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            if (window.innerWidth > 768) {
+                // 在大屏幕上确保侧边栏可见
+                sidebar.classList.remove('open');
+                overlay.classList.remove('open');
+                isMobileSidebarOpen = false;
+                
+                // 确保按钮文本可见
+                document.querySelectorAll('.btn-text').forEach(el => {
+                    el.style.display = 'inline';
+                });
+            } else {
+                // 在小屏幕上隐藏按钮文本
+                document.querySelectorAll('.btn-text').forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "server": {
+    "url": "127.0.0.1",
+    "port": 446
+  },
+  "roots": {
+    "movies": "",
+    "music": "",
+    "photos": "",
+    "documents": "",
+    "downloads": ""
+  },
+  "opensubtitles": {
+    "apiKey": "",
+    "username": "",
+    "password": "",
+    "userAgent": "MyPlayer/1.0"
+  }
+}

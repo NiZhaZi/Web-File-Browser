@@ -1,0 +1,3153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>媒体播放器 - 支持音轨、字幕与转码</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        :root {
+            --primary-color: #4c8bf5;
+            --background-dark: rgba(0, 0, 0, 0.9);
+            --text-light: #fff;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+        }
+        
+        body {
+            background: #000;
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .player-header {
+            background: var(--background-dark);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .player-header h1 {
+            font-size: 1.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60%;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .close-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .player-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        #playlist .track-item {
+            padding:8px;
+            border:1px solid #333;
+            border-radius:6px;
+            cursor:pointer;
+            background:rgba(255,255,255,.06);
+        }
+
+        #playlist .track-item.active {
+            outline:1px solid var(--primary-color);
+            background:rgba(76,139,245,.15);
+        }
+        
+        #playlist .track-time { color:#aaa; font-size:.85rem; }
+
+        #vizCanvas {
+            position: fixed;
+            left: 50%;
+            top: 20%;
+            transform: translateX(-50%);
+            z-index: 110;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+            border-radius: 6px;
+        }
+
+        #vizToolbar {
+            position: fixed;
+            right: 50%;
+            bottom: 30%; /* Adjust this value to place the button below the progress bar */
+            transform: translateX(50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 6px 8px;
+            z-index: 111;
+        }      
+
+        video {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 5px;
+        }
+        
+        audio {
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        .image-view {
+            text-align: center;
+        }
+        
+        .image-view img {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        .document-view {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        .error-container {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .error-container h2 {
+            color: #f44336;
+            margin-bottom: 15px;
+        }
+        
+        .control-menu {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 10px;
+            z-index: 101;
+            display: none;
+            min-width: 250px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .control-menu h3 {
+            margin-bottom: 10px;
+            font-size: 1rem;
+            color: var(--primary-color);
+        }
+        
+        .control-options {
+            margin-bottom: 15px;
+        }
+        
+        .control-option {
+            display: block;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-bottom: 5px;
+        }
+        
+        .control-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .control-option.active {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .quality-selector {
+            margin-top: 10px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+        }
+        
+        .quality-option {
+            margin-bottom: 8px;
+        }
+        
+        .quality-option label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .quality-option select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 5px;
+            width: 100%;
+        }
+        
+        .no-options {
+            padding: 10px;
+            text-align: center;
+            color: #999;
+        }
+        
+        .resolution-display {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            z-index: 10;
+        }
+        
+        .audio-info-display {
+            position: absolute;
+            bottom: 40px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            z-index: 10;
+        }
+        
+        .transcoding-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 20px;
+            border-radius: 5px;
+            text-align: center;
+            z-index: 102;
+            display: none;
+        }
+        
+        .transcoding-progress {
+            width: 100%;
+            margin-top: 10px;
+            height: 5px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .subtitle-upload {
+            margin-top: 15px;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+        
+        .upload-btn {
+            background: rgba(76, 139, 245, 0.3);
+            color: white;
+            border: 1px dashed #4c8bf5;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            margin-bottom: 10px;
+            display: block;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        
+        .upload-btn:hover {
+            background: rgba(76, 139, 245, 0.5);
+        }
+        
+        .subtitle-file-input {
+            display: none;
+        }
+        
+        .subtitle-info {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .subtitle-help {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .subtitle-help h4 {
+            margin-bottom: 5px;
+            color: var(--primary-color);
+        }
+        
+        .audio-fix-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            z-index: 103;
+            display: none;
+            max-width: 80%;
+            border: 1px solid var(--warning-color);
+        }
+        
+        .audio-fix-panel h4 {
+            color: var(--warning-color);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .audio-fix-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .audio-fix-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .audio-fix-btn.warning {
+            background: var(--warning-color);
+        }
+
+        :root {
+            --lyrics-active: #fff;
+            --lyrics-dim: #b7b7b7;
+        }
+
+        #lyricsBox {
+            margin: auto;
+            margin-top: 6px;
+            max-width: 80vw;
+            max-height: 20vh;
+            overflow: auto;
+            font-size: .95rem;
+            line-height: 1.6;
+            color: #ddd;
+        }
+
+        #lyricsBox .line { opacity: .75; transition: opacity .2s ease; }
+        #lyricsBox .line.active {
+            color: var(--lyrics-active);
+            opacity: 1;
+            font-weight: 600;
+            text-shadow: 0 0 6px rgba(0,0,0,.6);
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .player-header {
+                padding: 12px 15px;
+            }
+            
+            .player-header h1 {
+                font-size: 1rem;
+                max-width: 50%;
+            }
+            
+            .player-container {
+                padding: 15px;
+            }
+            
+            video {
+                max-height: 60vh;
+            }
+            
+            .control-menu {
+                top: 50px;
+                right: 10px;
+                left: 10px;
+                max-height: 60vh;
+            }
+            
+            .control-btn, .close-btn {
+                padding: 6px 10px;
+                font-size: 0.8rem;
+            }
+            
+            .resolution-display, .audio-info-display {
+                font-size: 0.7rem;
+                bottom: 5px;
+                left: 5px;
+            }
+            
+            .audio-info-display {
+                bottom: 35px;
+            }
+            
+            .audio-fix-panel {
+                top: 5px;
+                left: 5px;
+                right: 5px;
+                max-width: none;
+            }
+            
+            .audio-fix-buttons {
+                flex-direction: column;
+            }
+            
+            .audio-fix-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            #vizCanvas {
+                position: fixed;
+                left: 50%;
+                top: 20%;
+                transform: translateX(-50%);
+                z-index: 110;
+                height: 200px;
+                width: 90vw;
+                background: rgba(0, 0, 0, 0.5);
+                border: 1px solid #333;
+                border-radius: 6px;
+            }
+
+        }
+        
+        /* 字幕样式 */
+        video::cue {
+            font-size: var(--subtitle-font-size, 100%);
+            color: var(--subtitle-color, white);
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        video::cue(b) {
+            font-weight: bold;
+        }
+        
+        video::cue(i) {
+            font-style: italic;
+        }
+
+        .text-view {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            overflow: auto;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .text-view pre {
+            margin: 0;
+            padding: 0;
+            background: transparent !important;
+        }
+
+        .text-view code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            -moz-tab-size: 4;
+            tab-size: 4;
+        }
+
+        .text-toolbar {
+            position: sticky;
+            top: 0;
+            background: #2d2d2d;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            border-bottom: 1px solid #444;
+        }
+
+        .text-toolbar button {
+            background: #4c8bf5;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        .text-toolbar button:hover {
+            background: #3a6dc8;
+        }
+
+        .text-content {
+            padding: 15px;
+        }
+
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 40px;
+            padding: 15px 5px;
+            background: #252526;
+            color: #858585;
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid #444;
+        }
+
+        .code-container {
+            margin-left: 40px;
+            overflow-x: auto;
+        }
+    </style>
+
+    <!-- 在head标签内添加 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/typescript.min.js"></script>
+
+</head>
+<body>
+    <div class="player-header">
+        <h1 id="fileName">媒体播放器</h1>
+        <div class="header-controls">
+            <!-- <button class="control-btn" id="vizBtn">
+                <i class="fas fa-wave-square"></i> 可视化
+            </button> -->
+            <button class="control-btn" id="lyricsBtn">
+                <i class="fas fa-music"></i> 歌词
+            </button>
+            <button class="control-btn" id="qualityBtn">
+                <i class="fas fa-cog"></i> 质量
+            </button>
+            <button class="control-btn" id="audioBtn">
+                <i class="fas fa-volume-up"></i> 音轨
+            </button>
+            <button class="control-btn" id="subtitleBtn">
+                <i class="fas fa-closed-captioning"></i> 字幕
+            </button>
+            <button class="close-btn" onclick="window.close()">
+                <i class="fas fa-times"></i> 关闭
+            </button>
+        </div>
+    </div>
+    
+    <div class="control-menu" id="qualityMenu">
+        <h3>视频质量选项</h3>
+        <div class="quality-option">
+            <label for="transcodeQuality">转码质量:</label>
+            <select id="transcodeQuality">
+                <option value="original">原始质量</option>
+                <option value="4k">4K (2160p)</option>
+                <option value="1440p">1440p (QHD)</option>
+                <option value="1080p">1080p (全高清)</option>
+                <option value="720p">720p (高清)</option>
+                <option value="480p">480p (标清)</option>
+                <option value="360p">360p (低清)</option>
+            </select>
+        </div>
+        <div class="quality-option">
+            <label for="bitrate">比特率:</label>
+            <select id="bitrate">
+                <option value="auto">自动</option>
+                <option value="8000">8 Mbps (高质量)</option>
+                <option value="5000">5 Mbps (平衡)</option>
+                <option value="3000">3 Mbps (标准)</option>
+                <option value="1500">1.5 Mbps (节省流量)</option>
+            </select>
+        </div>
+        <div class="quality-option">
+            <label for="audioCompatibility">音频兼容性:</label>
+            <select id="audioCompatibility">
+                <option value="auto">自动检测</option>
+                <option value="compatible">强制兼容模式</option>
+                <option value="original">原始音频</option>
+            </select>
+        </div>
+        <button class="control-btn" style="width: 100%; margin-top: 10px;" onclick="applyTranscodeSettings()">
+            <i class="fas fa-check"></i> 应用设置
+        </button>
+    </div>
+    
+    <div class="control-menu" id="audioMenu">
+        <h3>音轨选项</h3>
+        <div class="control-options" id="audioTracks">
+            <div class="no-options" id="noAudioTracks">加载中...</div>
+        </div>
+    </div>
+    
+    <div class="control-menu" id="subtitleMenu">
+        <h3>字幕选项</h3>
+        <div class="control-options" id="builtInSubtitles">
+            <h4>内置字幕</h4>
+            <div class="no-options" id="noBuiltInSubtitles">加载中...</div>
+        </div>
+        
+        <div class="control-options" id="externalSubtitles">
+            <h4>外部字幕</h4>
+            <div class="no-options" id="noExternalSubtitles">未找到外部字幕文件</div>
+        </div>
+        
+        <div class="subtitle-upload">
+            <h4>上传字幕</h4>
+            <label for="subtitleFileInput" class="upload-btn">
+                <i class="fas fa-upload"></i> 选择字幕文件
+            </label>
+            <input type="file" id="subtitleFileInput" class="subtitle-file-input" accept=".srt,.vtt,.ass,.ssa">
+            <div class="subtitle-info">支持格式: SRT, VTT, ASS, SSA</div>
+        </div>
+        
+        <div class="quality-selector">
+            <div class="quality-option">
+                <label>字体大小:</label>
+                <select id="fontSize">
+                    <option value="100%">默认</option>
+                    <option value="120%">大</option>
+                    <option value="140%">更大</option>
+                    <option value="80%">小</option>
+                </select>
+            </div>
+            <div class="quality-option">
+                <label>字体颜色:</label>
+                <select id="fontColor">
+                    <option value="white">白色</option>
+                    <option value="yellow">黄色</option>
+                    <option value="cyan">青色</option>
+                    <option value="lime">绿色</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="subtitle-help">
+            <h4>字幕帮助</h4>
+            <p>如果无法访问内置字幕，请尝试:</p>
+            <ol>
+                <li>使用外部字幕文件</li>
+                <li>确保视频文件支持Web标准字幕格式</li>
+                <li>检查浏览器控制台获取详细错误信息</li>
+            </ol>
+        </div>
+
+        <div class="control-options" id="onlineSubtitles">
+            <h4>在线字幕</h4>
+            <div class="control-option" onclick="autoFetchOnlineSubtitles()">
+                <i class="fas fa-magic"></i> 自动获取（OpenSubtitles）
+            </div>
+
+            <div style="margin-top:8px;display:flex;gap:6px;">
+                <input id="subtitleQuery" placeholder="影片名 / S01E01" 
+                    style="flex:1;background:#333;border:1px solid #555;color:#fff;padding:6px;border-radius:3px;">
+                <select id="subtitleLangs" style="background:#333;border:1px solid #555;color:#fff;padding:6px;border-radius:3px;">
+                <option value="zh">中文</option>
+                <option value="en">英文</option>
+                <option value="ja">日文</option>
+                <option value="ko">韩文</option>
+                </select>
+                <button class="control-btn" onclick="manualSearchOnlineSubtitles()">
+                <i class="fas fa-search"></i> 搜索
+                </button>
+            </div>
+
+            <div id="onlineSubtitleResults" class="control-options" style="margin-top:8px;"></div>
+            <div class="subtitle-info" id="onlineSubtitleHint">
+                若提示“服务器未登录 OpenSubtitles”，请在服务器配置 OS_API_KEY 并登录账号。
+            </div>
+        </div>
+
+    </div>
+
+    <div class="control-menu" id="lyricsMenu">
+        <h3>歌词</h3>
+
+        <!-- 自动匹配（基于文件名或 CUE 曲目） -->
+        <div class="control-options">
+            <div class="control-option" onclick="autoFetchOnlineLyrics()">
+            <i class="fas fa-magic"></i> 自动获取（LRCLIB）
+            </div>
+        </div>
+
+        <!-- 手动搜索 -->
+        <div class="control-options">
+            <h4>在线搜索</h4>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <input id="lyricTitle" placeholder="歌曲名"
+                    style="flex:1;background:#333;border:1px solid #555;color:#fff;padding:6px;border-radius:3px;">
+            <input id="lyricArtist" placeholder="歌手"
+                    style="flex:1;background:#333;border:1px solid #555;color:#fff;padding:6px;border-radius:3px;">
+            <button class="control-btn" onclick="manualSearchOnlineLyrics()">
+                <i class="fas fa-search"></i> 搜索
+            </button>
+            </div>
+            <div id="onlineLyricsResults" class="control-options" style="margin-top:8px;"></div>
+            <div class="subtitle-info" style="margin-top:8px;">
+            若提示“服务器未启用 LRCLIB”，请先在后端添加 /api/lyrics 接口（见下方说明）。
+            </div>
+        </div>
+    </div>
+    
+    <div class="transcoding-indicator" id="transcodingIndicator">
+        <div class="loading-spinner"></div>
+        <p>正在转码视频，请稍候...</p>
+        <div class="transcoding-progress">
+            <div class="progress-bar" id="transcodeProgress"></div>
+        </div>
+    </div>
+    
+    <div class="audio-fix-panel" id="audioFixPanel">
+        <h4><i class="fas fa-volume-mute"></i> 检测到音频问题</h4>
+        <p>您的设备可能不支持当前音频格式</p>
+        <div class="audio-fix-buttons">
+            <button class="audio-fix-btn" onclick="enableCompatibleAudio()">
+                <i class="fas fa-check-circle"></i> 启用兼容音频
+            </button>
+            <button class="audio-fix-btn warning" onclick="closeAudioFixPanel()">
+                <i class="fas fa-times-circle"></i> 忽略
+            </button>
+        </div>
+    </div>
+    
+    <div class="player-container" id="playerContainer">
+        <div class="loading">
+            <div class="loading-spinner"></div>
+        </div>
+        <div class="resolution-display" id="resolutionDisplay"></div>
+        <div class="audio-info-display" id="audioInfoDisplay"></div>
+    </div>
+
+    <div class="text-view" id="textView" style="display: none;">
+        <div class="text-toolbar">
+            <div>
+            <span id="textFileName">文本文件</span>
+            <span id="textLanguage" style="margin-left: 10px; color: #888;"></span>
+            </div>
+            <div>
+            <button onclick="changeFontSize('increase')"><i class="fas fa-plus"></i> 放大</button>
+            <button onclick="changeFontSize('decrease')"><i class="fas fa-minus"></i> 缩小</button>
+            <button onclick="copyTextContent()"><i class="fas fa-copy"></i> 复制</button>
+            <button onclick="downloadTextFile()"><i class="fas fa-download"></i> 下载</button>
+            </div>
+        </div>
+        <div class="text-content">
+            <div class="line-numbers" id="lineNumbers"></div>
+            <div class="code-container">
+            <pre><code id="textContent"></code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- 播放列表（当加载 .cue 时显示） -->
+    <div id="playlistPanel" style="display:none;position:fixed;top:60px;right:0;width:300px;bottom:0;background:rgba(0,0,0,.85);border-left:1px solid #333;overflow:auto;z-index:120;padding:12px;">
+        <h3 style="color:#4c8bf5;font-size:1rem;margin-bottom:8px;">播放列表（CUE）</h3>
+        <div id="cueMeta" style="color:#bbb;font-size:.9rem;margin-bottom:8px;"></div>
+        <div id="playlist" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- 可视化画布（频谱/李萨如，音频播放时显示/隐藏） -->
+    <canvas id="vizCanvas" width="800" height="300"></canvas>
+    <!-- style="display:none;position:fixed;left:10px;right:320px;bottom:10px;height:200px;background:rgba(0,0,0,.5);border:1px solid #333;border-radius:6px;z-index:110;"></canvas> -->
+
+    <!-- 可视化模式切换小浮条 -->
+    <div id="vizToolbar" style="display:none;background:rgba(0,0,0,.8);border:1px solid #333;border-radius:6px;padding:6px 8px;z-index:111;">
+        <button class="control-btn" id="vizModeBtn" style="padding:6px 8px;font-size:.85rem;">
+            <i class="fas fa-sync"></i> 切换模式
+        </button>
+    </div>
+
+    <div id="lyricsBox" aria-live="polite"></div>
+
+    <script>
+        // 全局变量
+        let AUTH_TOKEN = localStorage.getItem("authToken") || null;
+        let SERVER_BASE_URL = localStorage.getItem("serverBaseUrl") || (location.origin || "http://127.0.0.1:3000");
+        let mediaElement = null;
+        let availableSubtitles = [];
+        let availableAudioTracks = [];
+        let originalVideoUrl = '';
+        let currentResolution = '';
+        let currentAudioTrack = 0;
+        let transcodeSettings = {
+            quality: 'original',
+            bitrate: 'auto',
+            audioTrack: 0,
+            audioCompatibility: 'auto',
+            subtitleTrack: null   // <— ADD THIS
+        };
+        let uploadedSubtitles = [];
+        let subtitleRetryCount = 0;
+        const MAX_SUBTITLE_RETRIES = 5;
+        let audioCheckInterval = null;
+        let audioIssueDetected = false;
+
+        // 设备检测
+        let isAndroid = /Android/i.test(navigator.userAgent);
+        let isEdge = /Edg/i.test(navigator.userAgent);
+
+        let cueData = null;           // 解析后的 CUE 数据
+        let cueTracks = [];           // 轨道数组 [{title, performer, start, end}]
+        let currentCueIndex = -1;     // 当前曲目索引
+        let viz = {                   // 可视化相关
+            ctx: null,
+            audioCtx: null,
+            analyser: null,
+            analyserR: null,            // 立体声右声道（李萨如）
+            srcNode: null,
+            splitter: null,
+            mode: 'spectrum',           // 'spectrum' | 'lissajous'
+            animId: null,
+            boundMedia: null,     // ← 新增：当前绑定的 <audio>，避免重复建源节点
+            drawing: false        // ← 新增：防止重复开绘制循环
+        };
+
+        let lyricsState = {
+            lines: [],          // [{t: 秒, text: '...'}]（若无时间戳 t=null）
+            hasTime: false,
+            source: '',         // 'local' | 'online' | 'manual'
+            currentIdx: -1,
+            offsetSec: 0
+        };
+
+        // document.getElementById('vizBtn').addEventListener('click', async () => {
+        //     const c = document.getElementById('vizCanvas');
+        //     const t = document.getElementById('vizToolbar');
+        //     const show = (c.style.display === 'none');
+        //     c.style.display = show ? 'block' : 'none';
+        //     t.style.display = show ? 'block' : 'none';
+        //     if (show) {
+        //         try {
+        //         if (viz.audioCtx && viz.audioCtx.state === 'suspended') await viz.audioCtx.resume();
+        //         } catch {}
+        //         startVisualization();
+        //     } else {
+        //         stopVisualization();
+        //     }
+        // });
+
+        document.getElementById('vizModeBtn').addEventListener('click', () => {
+            if (viz.mode === 'spectrum') {
+                viz.mode = 'lissajous';
+            } else if (viz.mode === 'lissajous') {
+                viz.mode = 'xyWave';
+            } else {
+                viz.mode = 'spectrum';
+            }
+        });
+
+        // 页面加载时初始化
+        document.addEventListener("DOMContentLoaded", function() {
+            // 检查认证状态
+            if (!AUTH_TOKEN) {
+                showError("未检测到登录信息，请重新登录");
+                return;
+            }
+            
+            // 从URL参数获取文件信息
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            const name = urlParams.get('name');
+            
+            if (!folder || !path || !name) {
+                showError("缺少必要的文件参数");
+                return;
+            }
+            
+            // 设置文件名
+            document.getElementById('fileName').textContent = name;
+            
+            // 设置控制按钮点击事件
+            document.getElementById('qualityBtn').addEventListener('click', function() {
+                toggleControlMenu('qualityMenu');
+            });
+            
+            document.getElementById('audioBtn').addEventListener('click', function() {
+                toggleControlMenu('audioMenu');
+                // 每次打开音轨菜单时检查音轨
+                if (mediaElement) {
+                    checkAudioTracks();
+                }
+            });
+            
+            document.getElementById('subtitleBtn').addEventListener('click', function() {
+                toggleControlMenu('subtitleMenu');
+                if (mediaElement) {
+                    checkBuiltInSubtitles(); // fetch from server every time menu opens
+                }
+            });
+
+            document.getElementById('lyricsBtn').addEventListener('click', function () {
+                toggleControlMenu('lyricsMenu');
+            });
+            
+            // 设置字幕样式变化事件
+            document.getElementById('fontSize').addEventListener('change', updateSubtitleStyle);
+            document.getElementById('fontColor').addEventListener('change', updateSubtitleStyle);
+            
+            // 设置字幕文件上传事件
+            document.getElementById('subtitleFileInput').addEventListener('change', handleSubtitleUpload);
+            
+            // 恢复用户设置，安卓设备默认使用兼容模式
+            const savedAudioCompatibility = localStorage.getItem('audioCompatibility') || 
+                                           (isAndroid ? 'compatible' : 'auto');
+            document.getElementById('audioCompatibility').value = savedAudioCompatibility;
+            transcodeSettings.audioCompatibility = savedAudioCompatibility;
+            
+            // 播放文件
+            playFile(folder, path, name);
+        });
+        
+        // 检测音频兼容性问题
+        async function checkAudioCompatibility() {
+            if (!mediaElement) return false;
+            
+            // 如果是安卓设备，直接返回true（需要兼容模式）
+            if (isAndroid) {
+                return true;
+            }
+            
+            // 检查音频轨道是否存在
+            const hasAudioTracks = mediaElement.audioTracks && mediaElement.audioTracks.length > 0;
+            
+            // 检查是否静音或音量为0
+            const isMutedOrZeroVolume = mediaElement.muted || mediaElement.volume === 0;
+            
+            // 检查是否可以播放
+            const isAudioAvailable = mediaElement.readyState > 0 && !mediaElement.error;
+            
+            // 如果有音频轨道但听不到声音，可能是兼容性问题
+            if (hasAudioTracks && isAudioAvailable && !isMutedOrZeroVolume) {
+                // 尝试检测音频是否实际在播放
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) {
+                        return false;
+                    }
+                    
+                    const audioContext = new AudioContext();
+                    const source = audioContext.createMediaElementSource(mediaElement);
+                    const analyser = audioContext.createAnalyser();
+                    source.connect(analyser);
+                    // analyser.connect(audioContext.destination);
+                    
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    // 等待一段时间后检查音频数据
+                    return new Promise((resolve) => {
+                        setTimeout(() => {
+                            analyser.getByteFrequencyData(dataArray);
+                            
+                            // 计算平均音量
+                            let sum = 0;
+                            for (const value of dataArray) {
+                                sum += value;
+                            }
+                            const average = sum / dataArray.length;
+                            
+                            // 如果平均音量非常低，可能没有音频输出
+                            resolve(average < 5);
+                            
+                            // 关闭音频上下文
+                            audioContext.close();
+                        }, 1000);
+                    });
+                } catch (error) {
+                    console.error("音频分析失败:", error);
+                    return false;
+                }
+            }
+            
+            return false;
+        }
+        
+        // 开始音频检查
+        function startAudioMonitoring() {
+            if (audioCheckInterval) {
+                clearInterval(audioCheckInterval);
+            }
+            
+            audioCheckInterval = setInterval(async () => {
+                if (mediaElement && mediaElement.readyState > 0 && !mediaElement.paused) {
+                    const hasAudioIssue = await checkAudioCompatibility();
+                    
+                    if (hasAudioIssue && !audioIssueDetected) {
+                        audioIssueDetected = true;
+                        showAudioFixPanel();
+                    }
+                }
+            }, 5000); // 每5秒检查一次
+        }
+        
+        // 显示音频修复面板
+        function showAudioFixPanel() {
+            const panel = document.getElementById('audioFixPanel');
+            panel.style.display = 'block';
+            
+            // 修改提示信息，更明确地指出安卓设备的问题
+            const panelTitle = panel.querySelector('h4');
+            const panelMessage = panel.querySelector('p');
+            
+            if (isAndroid) {
+                panelTitle.innerHTML = '<i class="fas fa-volume-mute"></i> 安卓设备音频兼容性问题';
+                panelMessage.textContent = '您的安卓设备可能不支持当前音频格式，建议启用兼容模式';
+            }
+            
+            // 延长显示时间
+            setTimeout(() => {
+                if (panel.style.display === 'block') {
+                    panel.style.display = 'none';
+                }
+            }, 15000); // 15秒后自动隐藏
+        }
+        
+        // 关闭音频修复面板
+        function closeAudioFixPanel() {
+            document.getElementById('audioFixPanel').style.display = 'none';
+        }
+        
+        // 启用兼容音频
+        function enableCompatibleAudio() {
+            closeAudioFixPanel();
+            
+            // 保存用户选择
+            localStorage.setItem('audioCompatibility', 'compatible');
+            document.getElementById('audioCompatibility').value = 'compatible';
+            transcodeSettings.audioCompatibility = 'compatible';
+            
+            // 重新加载视频
+            reloadWithNewSettings();
+        }
+        
+        // 使用新设置重新加载视频
+        function reloadWithNewSettings() {
+            if (!mediaElement) return;
+            
+            const currentTime = mediaElement.currentTime;
+            const wasPlaying = !mediaElement.paused;
+            
+            // 获取文件信息
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            const name = urlParams.get('name');
+            
+            // 重新播放文件
+            playFile(folder, path, name).then(() => {
+                if (mediaElement) {
+                    mediaElement.currentTime = currentTime;
+                    if (wasPlaying) {
+                        mediaElement.play().catch(e => console.log('自动播放被阻止:', e));
+                    }
+                }
+            });
+        }
+        
+        // 播放文件
+        async function playFile(folder, filePath, fileName) {
+            const playerContainer = document.getElementById('playerContainer');
+            const textView = document.getElementById('textView');
+
+            textView.style.display = 'none';
+            playerContainer.style.display = 'flex';
+
+            try {
+                // 获取文件类型
+                const fileType = getFileType(fileName);
+                
+                // 构建URL参数
+                const params = new URLSearchParams({
+                    folder: folder,
+                    path: filePath,
+                    token: AUTH_TOKEN
+                });
+                
+                // 添加音频兼容性设置
+                if (isAndroid && transcodeSettings.audioCompatibility === 'auto') {
+                    // 安卓设备默认启用兼容模式
+                    params.append('audioCompatibility', 'compatible');
+                } else if (transcodeSettings.audioCompatibility === 'compatible') {
+                    params.append('audioCompatibility', 'compatible');
+                }
+                
+                // 构建默认源：安卓或兼容模式 → 用 /api/transcode 原画（音频兼容）；否则 /api/stream 原文件
+                const wantCompat = (isAndroid && transcodeSettings.audioCompatibility === 'auto') 
+                                || (transcodeSettings.audioCompatibility === 'compatible');
+
+                if (wantCompat) {
+                originalVideoUrl = getTranscodeUrl(folder, filePath, 'original', 'auto', 0);
+                } else {
+                const params = new URLSearchParams({ folder, path: filePath, token: AUTH_TOKEN });
+                originalVideoUrl = `${SERVER_BASE_URL}/api/stream?${params}`;
+                }
+                
+                playerContainer.innerHTML = '';
+
+                // Hide visualization if the media is not audio
+                if (fileType !== 'audio' && fileType !== 'cue') {
+                    document.getElementById('vizCanvas').style.display = 'none';  // Hide canvas
+                    document.getElementById('vizToolbar').style.display = 'none';  // Hide toolbar
+                } else {
+                    document.getElementById('vizCanvas').style.display = 'block'; // Show canvas
+                    document.getElementById('vizToolbar').style.display = 'block'; // Show toolbar
+                }
+                
+                if (fileType === 'video') {
+                    const video = document.createElement('video');
+                    video.controls = true;
+                    video.autoplay = true;
+                    video.crossOrigin = 'anonymous';   // <— 新增
+                    video.playsInline = true; // iOS/部分安卓建议
+                    video.muted = false;
+                    video.volume = 1.0;
+                    video.src = originalVideoUrl;
+                    playerContainer.appendChild(video);
+                    mediaElement = video;
+                    
+                    // 添加分辨率显示
+                    const resolutionDisplay = document.createElement('div');
+                    resolutionDisplay.className = 'resolution-display';
+                    resolutionDisplay.id = 'resolutionDisplay';
+                    playerContainer.appendChild(resolutionDisplay);
+                    
+                    // 添加音频信息显示
+                    const audioInfoDisplay = document.createElement('div');
+                    audioInfoDisplay.className = 'audio-info-display';
+                    audioInfoDisplay.id = 'audioInfoDisplay';
+                    playerContainer.appendChild(audioInfoDisplay);
+                    
+                    // 监听视频元数据加载
+                    video.addEventListener('loadedmetadata', function() {
+                        updateResolutionDisplay(video);
+                        checkAudioTracks();
+                        checkBuiltInSubtitles();                 // now server‑driven
+                        autoFetchOnlineSubtitles();
+                        // also look for sidecar .srt/.vtt/.ass next to the file
+                        const urlParams = new URLSearchParams(window.location.search);
+                        loadExternalSubtitles(urlParams.get('folder'), urlParams.get('path'), urlParams.get('name'));
+                        startAudioMonitoring();
+                    });
+                    
+                    // 监听视频错误
+                    video.addEventListener('error', function() {
+                        handleMediaError(video.error);
+                    });
+                    
+                    // 监听视频播放
+                    video.addEventListener('play', function() {
+                        // 确保音频监测在播放时运行
+                        startAudioMonitoring();
+                    });
+                    
+                } else if (fileType === 'cue') {
+                    // 读取并解析 CUE，构建播放列表 & 音频元素
+                    const cueUrl = getAuthenticatedUrl(folder, filePath);
+                    const cueText = await fetch(cueUrl, { headers: { 'Authorization': AUTH_TOKEN } }).then(r => r.text());
+
+                    cueData = parseCue(cueText);
+                    if (!cueData || !cueData.file) {
+                        showError("CUE 解析失败或缺少 FILE 项");
+                        return;
+                    }
+                    // 计算实际音频文件路径（相对 CUE 所在目录）
+                    const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+                    const audioPath = fileDir ? `${fileDir}/${cueData.file}` : cueData.file;
+
+                    // 构建 <audio>
+                    playerContainer.innerHTML = '';
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.autoplay = true;
+                    audio.muted = false;
+                    audio.crossOrigin = 'anonymous';   // 可视化用
+                    audio.src = getAuthenticatedUrl(folder, audioPath);
+                    playerContainer.appendChild(audio);
+                    mediaElement = audio;
+                    // 重置可视化绑定，避免误判为“已绑定”导致不重建节点
+                    viz.boundMedia = null;
+                    stopVisualizationNodes(true);
+
+                    // 生成曲目列表（根据 TRACK INDEX 时间）
+                    cueTracks = buildCueTrackList(cueData);
+                    renderCuePlaylist(cueTracks);
+
+                    // 自动从第一首开始播
+                    if (cueTracks.length) {
+                        playCueIndex(0);
+                    }
+
+                    // 到达曲目 end 时自动切下一首
+                    audio.addEventListener('timeupdate', () => {
+                    const i = currentCueIndex;
+                    if (i >= 0 && i < cueTracks.length && cueTracks[i].end != null) {
+                        if (audio.currentTime >= cueTracks[i].end - 0.05) {
+                        if (i + 1 < cueTracks.length) {
+                            playCueIndex(i + 1);
+                        }
+                        }
+                    }
+                    });
+
+                    // 支持从外部点播放列表
+                    audio.addEventListener('loadedmetadata', () => {
+                        // 确保可视化监听
+                        startVisualization();
+                    });
+                } else if (fileType === 'audio') {
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.autoplay = true;
+                    audio.muted = false;
+                    audio.crossOrigin = 'anonymous';       // ← 新增
+                    audio.src = originalVideoUrl;
+                    playerContainer.appendChild(audio);
+                    mediaElement = audio;
+                    // 重置可视化绑定，避免误判为“已绑定”导致不重建节点
+                    viz.boundMedia = null;
+                    stopVisualizationNodes(true);
+
+                    audio.addEventListener('loadedmetadata', () => {
+                        startVisualization();  
+                    });
+                } else if (fileType === 'image') {
+                    const img = document.createElement('img');
+                    img.src = originalVideoUrl;
+                    playerContainer.appendChild(img);
+                } else if (fileType === 'text') {
+                    // 播放文本文件
+                    playTextFile(folder, filePath, fileName);
+                } else {
+                    showError("不支持的文件类型");
+                }
+            } catch (error) {
+                console.error('播放文件失败:', error);
+                showError('播放失败: ' + error.message);
+            }
+        }
+
+        async function playTextFile(folder, filePath, fileName) {
+            const playerContainer = document.getElementById('playerContainer');
+            const textView = document.getElementById('textView');
+            
+            playerContainer.style.display = 'none';
+            textView.style.display = 'block';
+            
+            document.getElementById('textFileName').textContent = fileName;
+            document.getElementById('textLanguage').textContent = `(${getLanguageType(fileName)})`;
+            
+            try {
+                const params = new URLSearchParams({
+                folder: folder,
+                path: filePath,
+                token: AUTH_TOKEN
+                });
+                
+                const response = await fetch(`${SERVER_BASE_URL}/api/read-text?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                const language = getLanguageType(fileName);
+                const codeElement = document.getElementById('textContent');
+                
+                codeElement.textContent = data.content;
+                codeElement.className = `language-${language}`;
+                
+                // 高亮代码
+                hljs.highlightElement(codeElement);
+                
+                // 添加行号
+                addLineNumbers(data.content);
+                } else {
+                showError('读取文本文件失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('读取文本文件失败:', error);
+                showError('读取文本文件失败: ' + error.message);
+            }
+        }
+
+        function addLineNumbers(content) {
+            const lineCount = content.split('\n').length;
+            const lineNumbers = document.getElementById('lineNumbers');
+            lineNumbers.innerHTML = '';
+            
+            for (let i = 1; i <= lineCount; i++) {
+                const lineNum = document.createElement('div');
+                lineNum.textContent = i;
+                lineNumbers.appendChild(lineNum);
+            }
+        }
+
+        function changeFontSize(action) {
+            const codeElement = document.getElementById('textContent');
+            const currentSize = parseInt(window.getComputedStyle(codeElement).fontSize) || 14;
+            
+            if (action === 'increase') {
+                codeElement.style.fontSize = `${currentSize + 2}px`;
+            } else if (action === 'decrease' && currentSize > 10) {
+                codeElement.style.fontSize = `${currentSize - 2}px`;
+            }
+        }
+
+        function copyTextContent() {
+            const text = document.getElementById('textContent').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('内容已复制到剪贴板');
+            }).catch(err => {
+                showNotification('复制失败: ' + err, true);
+            });
+        }
+
+        function downloadTextFile() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            const name = urlParams.get('name');
+            
+            const downloadUrl = getAuthenticatedUrl(folder, path);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        // 检查音轨
+        function checkAudioTracks() {
+            const audioContainer = document.getElementById('audioTracks');
+            const noAudioElement = document.getElementById('noAudioTracks');
+            
+            if (!mediaElement) {
+                noAudioElement.textContent = "媒体元素未初始化";
+                return;
+            }
+            
+            // 延迟检查，因为音轨可能需要时间加载
+            setTimeout(() => {
+                // 尝试通过服务器获取音轨信息
+                getAudioTracksInfo();
+            }, 300);
+        }
+        
+        // 通过服务器API获取音轨信息
+        async function getAudioTracksInfo() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            
+            try {
+                const apiUrl = `${SERVER_BASE_URL}/api/audio-tracks`;
+                const params = new URLSearchParams({
+                    folder: folder,
+                    path: path,
+                    token: AUTH_TOKEN
+                });
+                
+                const response = await fetch(`${apiUrl}?${params}`);
+                
+                if (!response.ok) {
+                    throw new Error(`服务器返回错误: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.audioTracks && data.audioTracks.length > 0) {
+                    updateAudioTracksUI(data.audioTracks);
+                } else {
+                    showNoAudioTracksMessage();
+                }
+            } catch (error) {
+                console.error('获取音轨信息失败:', error);
+                showNoAudioTracksMessage();
+            }
+        }
+        
+        // 更新音轨UI
+        function updateAudioTracksUI(audioTracks) {
+            const audioContainer = document.getElementById('audioTracks');
+            const noAudioElement = document.getElementById('noAudioTracks');
+            
+            availableAudioTracks = audioTracks;
+            
+            let html = '<h4>可用音轨</h4>';
+            
+            // 添加所有音轨选项
+            audioTracks.forEach((track, index) => {
+                const language = track.language || '未知';
+                const channels = track.channels ? ` (${track.channels}声道)` : '';
+                const isDefault = track.default ? ' [默认]' : '';
+                
+                html += `
+                    <div class="control-option ${index === currentAudioTrack ? 'active' : ''}" 
+                         data-track="${index}" onclick="selectAudioTrack(${index})">
+                        <i class="fas fa-volume-up"></i> 音轨 ${index + 1}: ${language}${channels}${isDefault}
+                    </div>
+                `;
+            });
+            
+            noAudioElement.style.display = 'none';
+            audioContainer.innerHTML = html;
+            
+            // 更新音频信息显示
+            updateAudioInfoDisplay();
+        }
+        
+        // 显示无音轨消息
+        function showNoAudioTracksMessage() {
+            const audioContainer = document.getElementById('audioTracks');
+            const noAudioElement = document.getElementById('noAudioTracks');
+            
+            noAudioElement.textContent = "无法获取音轨信息";
+            noAudioElement.style.display = 'block';
+            audioContainer.innerHTML = '';
+        }
+        
+        // 选择音轨
+        function selectAudioTrack(trackIndex) {
+            // 更新当前音轨
+            currentAudioTrack = trackIndex;
+            transcodeSettings.audioTrack = trackIndex;
+            
+            // 更新选项UI
+            document.querySelectorAll('#audioTracks .control-option').forEach((opt, index) => {
+                if (index === trackIndex) {
+                    opt.classList.add('active');
+                } else {
+                    opt.classList.remove('active');
+                }
+            });
+            
+            // 关闭菜单
+            document.getElementById('audioMenu').style.display = 'none';
+            
+            // 重新加载视频以应用音轨选择
+            reloadVideoWithAudioTrack();
+        }
+        
+        // 重新加载视频以应用音轨选择
+        function reloadVideoWithAudioTrack() {
+            if (!mediaElement) return;
+            showTranscodingIndicator(true);
+
+            const currentTime = mediaElement.currentTime;
+            const wasPlaying = !mediaElement.paused;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+
+            const transcodeUrl = getTranscodeUrl(folder, path, transcodeSettings.quality, transcodeSettings.bitrate, currentAudioTrack);
+
+            // 30 秒防卡死
+            const transcodeTimeout = setTimeout(() => {
+                showTranscodingIndicator(false);
+                showNotification('转码超时，请重试', true);
+            }, 30000);
+
+            const clearAll = () => {
+                clearTimeout(transcodeTimeout);
+                mediaElement.removeEventListener('error', onErr);
+                mediaElement.removeEventListener('loadedmetadata', onMeta);
+                mediaElement.removeEventListener('loadeddata', onMeta);
+                mediaElement.removeEventListener('canplay', onMeta);
+            };
+
+            const onMeta = () => {
+                clearAll();
+                mediaElement.currentTime = currentTime;
+                if (wasPlaying) {
+                mediaElement.play().catch(()=>{});
+                }
+                showTranscodingIndicator(false);
+                updateAudioInfoDisplay();
+            };
+
+            const onErr = () => {
+                clearAll();
+                showTranscodingIndicator(false);
+                showNotification('音轨切换失败，正在恢复', true);
+                mediaElement.src = originalVideoUrl;
+            };
+
+            mediaElement.addEventListener('error', onErr);
+            mediaElement.addEventListener('loadedmetadata', onMeta, { once:true });
+            mediaElement.addEventListener('loadeddata', onMeta, { once:true }); // ← 新增
+            mediaElement.addEventListener('canplay', onMeta, { once:true });    // ← 新增
+
+            mediaElement.src = transcodeUrl;
+        }
+        
+        // 更新音频信息显示
+        function updateAudioInfoDisplay() {
+            const audioInfoDisplay = document.getElementById('audioInfoDisplay');
+            
+            if (availableAudioTracks.length > 0 && currentAudioTrack < availableAudioTracks.length) {
+                const track = availableAudioTracks[currentAudioTrack];
+                const language = track.language || '未知';
+                const channels = track.channels ? ` (${track.channels}声道)` : '';
+                
+                audioInfoDisplay.textContent = `音轨: ${language}${channels}`;
+                audioInfoDisplay.style.display = 'block';
+            } else {
+                audioInfoDisplay.style.display = 'none';
+            }
+        }
+
+        async function autoFetchOnlineSubtitles() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            const resultsBox = document.getElementById('onlineSubtitleResults');
+            resultsBox.innerHTML = '<div class="no-options">正在自动匹配...</div>';
+
+            try {
+                const p = new URLSearchParams({ folder, path, languages: 'zh,en', token: AUTH_TOKEN });
+                const r = await fetch(`${SERVER_BASE_URL}/api/subtitles/auto?${p}`);
+                const data = await r.json();
+                if (data.success && data.found) {
+                await loadOnlineSubtitleByFileId(data.result.file_id, `在线字幕 · ${data.result.language}`);
+                resultsBox.innerHTML = '<div class="control-option active"><i class="fas fa-check"></i> 已自动加载匹配字幕</div>';
+                } else {
+                resultsBox.innerHTML = '<div class="no-options">未找到自动匹配字幕，请尝试手动搜索</div>';
+                }
+            } catch (e) {
+                console.error(e);
+                resultsBox.innerHTML = '<div class="no-options">自动获取失败：' + e.message + '</div>';
+            }
+            }
+
+            async function manualSearchOnlineSubtitles() {
+            const q = document.getElementById('subtitleQuery').value.trim();
+            const langs = document.getElementById('subtitleLangs').value || 'zh';
+            const resultsBox = document.getElementById('onlineSubtitleResults');
+            if (!q) { resultsBox.innerHTML = '<div class="no-options">请输入片名或关键字</div>'; return; }
+
+            resultsBox.innerHTML = '<div class="no-options">正在搜索...</div>';
+            try {
+                const p = new URLSearchParams({ q, languages: langs, token: AUTH_TOKEN });
+                const r = await fetch(`${SERVER_BASE_URL}/api/subtitles/search?${p}`);
+                const data = await r.json();
+                if (!data.success || !data.results || data.results.length === 0) {
+                resultsBox.innerHTML = '<div class="no-options">没有搜索到匹配字幕</div>';
+                return;
+                }
+                let html = '';
+                data.results.forEach((it, idx) => {
+                const file = (it.files && it.files[0]) || {};
+                if (!file.file_id) return;
+                const lab = `${it.language || ''} · ${it.release || ''}`;
+                html += `
+                    <div class="control-option" onclick="loadOnlineSubtitleByFileId(${file.file_id}, '${lab.replace(/'/g,"&#39;")}')">
+                    <i class="fas fa-closed-captioning"></i> ${lab}
+                    </div>`;
+                });
+                resultsBox.innerHTML = html || '<div class="no-options">没有可用的下载项</div>';
+            } catch (e) {
+                console.error(e);
+                resultsBox.innerHTML = '<div class="no-options">搜索失败：' + e.message + '</div>';
+            }
+            }
+
+            async function loadOnlineSubtitleByFileId(file_id, label) {
+            // 关闭所有现有轨道
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                mediaElement.textTracks[i].mode = 'disabled';
+                }
+            }
+            // 移除之前的在线/上传字幕
+            document.querySelectorAll('track[data-online], track[data-uploaded]').forEach(t => t.remove());
+
+            const p = new URLSearchParams({ file_id: String(file_id), token: AUTH_TOKEN });
+            const vttUrl = `${SERVER_BASE_URL}/api/subtitles/os/download-vtt?${p}`;
+
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = label || '在线字幕';
+            track.srclang = 'und';
+            track.src = vttUrl;
+            track.default = true;
+            track.setAttribute('data-online', 'true');
+
+            mediaElement.appendChild(track);
+            track.addEventListener('load', function() {
+                this.mode = 'showing';
+                applySubtitleStyle();
+                showNotification("在线字幕已加载");
+            });
+            track.addEventListener('error', function() {
+                showNotification("下载/加载在线字幕失败", true);
+            });
+        }
+
+        async function osFetch(path, { method = "GET", headers = {}, json, rawBody } = {}) {
+            if (!OS_CFG.API_KEY) throw new Error("缺少 OS_API_KEY（OpenSubtitles API Key）");
+            const h = {
+                "Api-Key": OS_CFG.API_KEY,
+                "Accept": "application/json",
+                ...headers
+            };
+            if (OS_STATE.token) h["Authorization"] = `Bearer ${OS_STATE.token}`;
+            let body;
+            if (json) { h["Content-Type"] = "application/json"; body = JSON.stringify(json); }
+            if (rawBody) { body = rawBody; }
+            const url = `${OS_STATE.baseUrl}${path}`;
+            const r = await _fetch(url, { method, headers: h, body });
+            if (!r.ok) {
+                const t = await r.text().catch(()=> "");
+                throw new Error(`OS API ${method} ${path} ${r.status} ${r.statusText} ${t}`);
+            }
+            const ct = r.headers.get("content-type") || "";
+            return ct.includes("application/json") ? r.json() : r.arrayBuffer();
+            }
+
+            async function osLogin(username, password) {
+            const data = await osFetch("/login", {
+                method: "POST",
+                json: { username, password, remember_me: true, user_agent: OS_CFG.USER_AGENT }
+            });
+            OS_STATE.token = data.token;
+            if (data.base_url) OS_STATE.baseUrl = data.base_url; // 可能返回 VIP 节点
+            OS_STATE.tokenExpires = Date.now() + 6 * 60 * 60 * 1000; // 简单假设 6 小时
+            return { baseUrl: OS_STATE.baseUrl };
+        }
+
+        function computeOSHash(filePath) {
+            const stat = fs.statSync(filePath);
+            const size = BigInt(stat.size);
+            const chunk = 64 * 1024;
+            const buf = Buffer.alloc(chunk);
+            const fd = fs.openSync(filePath, "r");
+            let hash = size;
+
+            // 头 64KiB
+            let bytes = fs.readSync(fd, buf, 0, chunk, 0);
+            for (let i = 0; i + 8 <= bytes; i += 8) hash += buf.readBigUInt64LE(i);
+
+            // 尾 64KiB
+            const tailStart = Math.max(0, stat.size - chunk);
+            bytes = fs.readSync(fd, buf, 0, chunk, tailStart);
+            for (let i = 0; i + 8 <= bytes; i += 8) hash += buf.readBigUInt64LE(i);
+
+            fs.closeSync(fd);
+            return hash.toString(16).padStart(16, "0");
+        }
+
+        async function useBuiltInSubtitleAsExternal(idx) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+
+            // Remove previously injected tracks
+            document.querySelectorAll('track[data-built-in]').forEach(t => t.remove());
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                mediaElement.textTracks[i].mode = 'disabled';
+                }
+            }
+
+            // Create a <track> that streams VTT from the server
+            const params = new URLSearchParams({ folder, path, token: AUTH_TOKEN, sindex: String(idx) });
+            const vttUrl = `${SERVER_BASE_URL}/api/extract-subtitles?${params}`;
+
+            let headOk = false;
+            try {
+            const r = await fetch(vttUrl, { method: 'GET' }); // 直接 GET，便于拿到错误信息
+            if (r.ok && (r.headers.get('content-type') || '').includes('text/vtt')) {
+                headOk = true;
+            } else {
+                const json = await r.json().catch(() => ({}));
+                if (r.status === 415) {
+                showNotification("该内置字幕为位图字幕（PGS/DVD），请使用“转码并烧录”", true);
+                } else {
+                showNotification(`提取字幕失败：${json.error || r.statusText}`, true);
+                }
+            }
+            } catch (e) {
+            showNotification(`字幕请求异常：${e.message}`, true);
+            }
+
+            if (!headOk) return;
+
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = `内置字幕 #${idx + 1}`;
+            track.srclang = 'und';
+            track.src = vttUrl;
+            track.default = true;
+            track.setAttribute('data-built-in', 'true');
+
+            mediaElement.appendChild(track);
+            track.addEventListener('load', function() {
+                this.mode = 'showing';
+                applySubtitleStyle();
+                showNotification("已加载内置字幕");
+            });
+            track.addEventListener('error', () => showNotification("加载内置字幕失败", true));
+
+            // Ensure we don't burn in at the same time
+            transcodeSettings.subtitleTrack = null;
+        }
+
+        function burnInSubtitle(idx) {
+            transcodeSettings.subtitleTrack = idx;
+
+            // If user is currently on "原始质量", keep it or pick one you like.
+            // We reuse your existing transcode flow:
+            document.getElementById('qualityMenu').style.display = 'none';
+            // Show the transcode indicator & swap source using your existing helpers
+            applyTranscodeSettings(); // will use subtitleTrack via getTranscodeUrl()
+        }
+
+        // 检查内置字幕轨道 - 改进版本
+        // NEW: list muxed subtitles via server probe
+        async function checkBuiltInSubtitles() {
+            const builtInContainer = document.getElementById('builtInSubtitles');
+            const noBuiltInElement = document.getElementById('noBuiltInSubtitles');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+
+            try {
+                const params = new URLSearchParams({ folder, path, token: AUTH_TOKEN });
+                const res = await fetch(`${SERVER_BASE_URL}/api/subtitle-tracks?${params}`);
+                if (!res.ok) throw new Error(`服务器返回错误: ${res.status}`);
+                const data = await res.json();
+                const tracks = (data.subtitleTracks || []);
+
+                let html = '<h4>内置字幕</h4>';
+                html += `
+                <div class="control-option active" data-track="none" onclick="disableAllSubtitles()">
+                    <i class="fas fa-times"></i> 关闭字幕
+                </div>
+                `;
+
+                if (tracks.length === 0) {
+                noBuiltInElement.textContent = "未检测到内置字幕";
+                noBuiltInElement.style.display = 'block';
+                builtInContainer.innerHTML = html;
+                return;
+                }
+
+                noBuiltInElement.style.display = 'none';
+
+                tracks.forEach((t, idx) => {
+                const isBitmap = ['hdmv_pgs_subtitle','dvd_subtitle','xsub','dvb_subtitle'].includes(t.codec);
+                const label = `${t.title || '字幕 ' + (idx + 1)} (${t.language || 'und'})`;
+                html += `
+                    <div class="control-option" data-builtin="${idx}">
+                    <div><i class="fas fa-closed-captioning"></i> ${label}</div>
+                    <div style="opacity:.8;font-size:.85em;margin-top:4px;">${t.codec}${isBitmap ? '（位图）' : '（文本）'}</div>
+                    <div style="display:flex;gap:6px;margin-top:6px;">
+                        ${isBitmap
+                        ? `<button class="control-btn" onclick="burnInSubtitle(${idx}); event.stopPropagation();">转码并烧录</button>`
+                        : `<button class="control-btn" onclick="useBuiltInSubtitleAsExternal(${idx}); event.stopPropagation();">加载为外挂</button>`
+                        }
+                    </div>
+                    </div>`;
+                });
+
+                builtInContainer.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+                noBuiltInElement.textContent = "读取内置字幕失败";
+                noBuiltInElement.style.display = 'block';
+            }
+        }
+
+        // Turn off all subtitles (built‑in/external/uploaded)
+        function disableAllSubtitles() {
+        if (mediaElement && mediaElement.textTracks) {
+            for (let i = 0; i < mediaElement.textTracks.length; i++) {
+            mediaElement.textTracks[i].mode = 'disabled';
+            }
+        }
+        document.querySelectorAll('#subtitleMenu .control-option').forEach(el => el.classList.remove('active'));
+        const opt = document.querySelector('#subtitleMenu .control-option[data-track="none"]');
+        if (opt) opt.classList.add('active');
+        transcodeSettings.subtitleTrack = null;
+        // remove any server‑extracted tracks we added earlier
+        document.querySelectorAll('track[data-built-in]').forEach(t => t.remove());
+        }
+        
+        async function selectExternalSubtitle(subtitlePath) {
+            // 关闭现有轨道/更新UI（保留你原来的这部分）
+
+            if (subtitlePath === 'none') return;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const ext = subtitlePath.split('.').pop().toLowerCase();
+
+            let trackUrl = '';
+            if (ext === 'vtt') {
+                // 直接使用原文件（后端已提供正确 MIME）
+                trackUrl = getAuthenticatedUrl(folder, subtitlePath);
+            } else if (['srt','ass','ssa'].includes(ext)) {
+                // 走服务端转换成 WebVTT
+                const p = new URLSearchParams({ folder, path: subtitlePath, token: AUTH_TOKEN });
+                // 若有乱码，可在 UI 里增加选项，附带 p.append('charenc','cp936') 等
+                trackUrl = `${SERVER_BASE_URL}/api/convert-subtitle-file?${p}`;
+            } else {
+                showNotification("不支持的字幕格式", true);
+                return;
+            }
+
+            // 挂载 <track>
+            if (mediaElement) {
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = '外部字幕';
+                track.srclang = 'zh';
+                track.src = trackUrl;
+                track.default = true;
+                mediaElement.appendChild(track);
+                track.addEventListener('load', function() {
+                this.mode = 'showing';
+                applySubtitleStyle();
+                showNotification("外部字幕加载成功");
+                });
+                track.addEventListener('error', function(e) {
+                console.error("加载外部字幕失败:", e);
+                showNotification("加载外部字幕失败", true);
+                });
+            }
+        }
+        
+        // 加载外部字幕文件
+        async function loadExternalSubtitles(folder, filePath, fileName) {
+            try {
+                // 获取文件的基本名称（不含扩展名）
+                const baseName = fileName.replace(/\.[^/.]+$/, "");
+                const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+                
+                // 可能的字幕文件扩展名
+                const subtitleExts = ['.srt', '.vtt', '.ass', '.ssa'];
+                const externalContainer = document.getElementById('externalSubtitles');
+                const noExternalElement = document.getElementById('noExternalSubtitles');
+                let hasExternalSubtitles = false;
+                let html = '<h4>外部字幕</h4>';
+                
+                // 添加"关闭字幕"选项
+                html += `
+                    <div class="control-option active" data-path="none" onclick="selectExternalSubtitle('none')">
+                        <i class="fas fa-times"></i> 关闭字幕
+                    </div>
+                `;
+                
+                // 尝试查找字幕文件
+                for (const ext of subtitleExts) {
+                    const subtitlePath = fileDir ? `${fileDir}/${baseName}${ext}` : `${baseName}${ext}`;
+                    
+                    try {
+                        // 检查字幕文件是否存在
+                        const subtitleUrl = getAuthenticatedUrl(folder, subtitlePath);
+                        const response = await fetch(subtitleUrl, { method: 'HEAD' });
+                        
+                        if (response.ok) {
+                            hasExternalSubtitles = true;
+                            const lang = getLanguageFromFilename(baseName);
+                            
+                            html += `
+                                <div class="control-option" data-path="${subtitlePath}" onclick="selectExternalSubtitle('${subtitlePath}')">
+                                    <i class="fas fa-closed-captioning"></i> ${baseName}${ext} (${lang})
+                                </div>
+                            `;
+                            
+                            availableSubtitles.push({
+                                name: `${baseName}${ext}`,
+                                path: subtitlePath,
+                                lang: lang,
+                                ext: ext
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`检查字幕文件 ${subtitlePath} 失败:`, error);
+                    }
+                }
+                
+                if (hasExternalSubtitles) {
+                    noExternalElement.style.display = 'none';
+                    externalContainer.innerHTML = html;
+                } else {
+                    noExternalElement.textContent = "未找到外部字幕文件";
+                    noExternalElement.style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('加载外部字幕失败:', error);
+            }
+        }
+        
+        // 选择外部字幕
+        async function selectExternalSubtitle(subtitlePath) {
+            // 关闭所有内置轨道
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                    mediaElement.textTracks[i].mode = 'disabled';
+                }
+            }
+            
+            // 移除之前上传的字幕轨道
+            document.querySelectorAll('track[data-uploaded]').forEach(track => {
+                track.remove();
+            });
+            
+            // 更新选项UI
+            document.querySelectorAll('.control-option').forEach(opt => {
+                opt.classList.remove('active');
+            });
+            
+            // 激活选中的选项
+            const selectedOption = document.querySelector(`.control-option[data-path="${subtitlePath}"]`);
+            if (selectedOption) {
+                selectedOption.classList.add('active');
+            }
+            
+            // 如果选择关闭字幕，直接返回
+            if (subtitlePath === 'none') {
+                return;
+            }
+            
+            try {
+                // 获取字幕文件URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const folder = urlParams.get('folder');
+                const subtitleUrl = getAuthenticatedUrl(folder, subtitlePath);
+                
+                // 添加新的字幕轨道
+                if (mediaElement) {
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.label = '外部字幕';
+                    track.srclang = 'zh';
+                    track.src = subtitleUrl;
+                    track.default = true;
+                    
+                    mediaElement.appendChild(track);
+                    
+                    // 等待轨道加载
+                    track.addEventListener('load', function() {
+                        this.mode = 'showing';
+                        applySubtitleStyle();
+                        showNotification("外部字幕加载成功");
+                    });
+                    
+                    track.addEventListener('error', function(e) {
+                        console.error("加载外部字幕失败:", e);
+                        showNotification("加载外部字幕失败", true);
+                    });
+                }
+            } catch (error) {
+                console.error('加载外部字幕失败:', error);
+                showNotification('加载字幕失败: ' + error.message, true);
+            }
+        }
+        
+        // 处理字幕文件上传
+        function handleSubtitleUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const fileName = file.name;
+            const fileExt = fileName.split('.').pop().toLowerCase();
+            
+            // 检查文件格式
+            if (!['srt', 'vtt', 'ass', 'ssa'].includes(fileExt)) {
+                showNotification('不支持的字幕格式', true);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let subtitleContent = e.target.result;
+                
+                // 如果是SRT格式，转换为VTT格式
+                if (fileExt === 'srt') {
+                    subtitleContent = convertSrtToVtt(subtitleContent);
+                }
+                
+                // 创建Blob URL
+                const blob = new Blob([subtitleContent], { type: 'text/vtt' });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // 添加字幕轨道
+                if (mediaElement) {
+                    // 关闭所有现有轨道
+                    if (mediaElement.textTracks) {
+                        for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                            mediaElement.textTracks[i].mode = 'disabled';
+                        }
+                    }
+                    
+                    // 移除之前上传的字幕轨道
+                    document.querySelectorAll('track[data-uploaded]').forEach(track => {
+                        track.remove();
+                    });
+                    
+                    // 创建新轨道
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.label = fileName;
+                    track.srclang = 'zh';
+                    track.src = blobUrl;
+                    track.default = true;
+                    track.setAttribute('data-uploaded', 'true');
+                    
+                    mediaElement.appendChild(track);
+                    
+                    // 等待轨道加载
+                    track.addEventListener('load', function() {
+                        this.mode = 'showing';
+                        applySubtitleStyle();
+                        
+                        // 添加到上传字幕列表
+                        addUploadedSubtitleToUI(fileName);
+                        
+                        // 显示成功消息
+                        showNotification(`已加载字幕: ${fileName}`);
+                    });
+                    
+                    track.addEventListener('error', function(e) {
+                        console.error("上传的字幕加载失败:", e);
+                        showNotification("上传的字幕加载失败", true);
+                    });
+                }
+            };
+            
+            reader.readAsText(file);
+            
+            // 重置文件输入
+            event.target.value = '';
+        }
+        
+        // 将SRT格式转换为VTT格式
+        function convertSrtToVtt(srtContent) {
+            // 添加VTT文件头
+            let vttContent = "WEBVTT\n\n";
+            
+            // 替换时间格式 (00:00:00,000 --> 00:00:00,000)
+            vttContent += srtContent
+                .replace(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/g, '$1:$2:$3.$4')
+                .replace(/{.*?}/g, '') // 移除SSA/ASS样式标签
+                .replace(/\\N/g, '\n'); // 替换换行符
+            
+            return vttContent;
+        }
+        
+        // 添加上传的字幕到UI
+        function addUploadedSubtitleToUI(fileName) {
+            const externalContainer = document.getElementById('externalSubtitles');
+            const noExternalElement = document.getElementById('noExternalSubtitles');
+            
+            // 隐藏"无外部字幕"消息
+            noExternalElement.style.display = 'none';
+            
+            // 检查是否已存在
+            let existingOption = document.querySelector(`.control-option[data-uploaded="${fileName}"]`);
+            
+            if (!existingOption) {
+                // 创建新选项
+                const option = document.createElement('div');
+                option.className = 'control-option';
+                option.setAttribute('data-uploaded', fileName);
+                option.innerHTML = `<i class="fas fa-closed-captioning"></i> ${fileName} (上传)`;
+                option.onclick = function() {
+                    selectUploadedSubtitle(fileName);
+                };
+                
+                // 添加到容器
+                const firstOption = externalContainer.querySelector('.control-option');
+                if (firstOption) {
+                    externalContainer.insertBefore(option, firstOption.nextSibling);
+                } else {
+                    externalContainer.appendChild(option);
+                }
+                
+                // 添加到数组
+                uploadedSubtitles.push(fileName);
+            }
+        }
+        
+        // 选择上传的字幕
+        function selectUploadedSubtitle(fileName) {
+            // 关闭所有轨道
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                    mediaElement.textTracks[i].mode = 'disabled';
+                }
+            }
+            
+            // 移除所有上传的字幕轨道（除了选中的）
+            document.querySelectorAll('track[data-uploaded]').forEach(track => {
+                if (track.label !== fileName) {
+                    track.remove();
+                }
+            });
+            
+            // 更新选项UI
+            document.querySelectorAll('.control-option').forEach(opt => {
+                opt.classList.remove('active');
+            });
+            
+            // 激活选中的选项
+            const selectedOption = document.querySelector(`.control-option[data-uploaded="${fileName}"]`);
+            if (selectedOption) {
+                selectedOption.classList.add('active');
+            }
+            
+            // 启用选中的轨道
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                    if (mediaElement.textTracks[i].label === fileName) {
+                        mediaElement.textTracks[i].mode = 'showing';
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 从文件名猜测语言
+        function getLanguageFromFilename(filename) {
+            const langPatterns = {
+                'zh': ['chinese', 'chi', 'zh', 'cn'],
+                'en': ['english', 'eng', 'en', 'us'],
+                'ja': ['japanese', 'jpn', 'ja', 'jp'],
+                'ko': ['korean', 'kor', 'ko', 'kr'],
+                'fr': ['french', 'fre', 'fr'],
+                'es': ['spanish', 'spa', 'es'],
+                'de': ['german', 'ger', 'de']
+            };
+            
+            const lowerName = filename.toLowerCase();
+            
+            for (const [lang, patterns] of Object.entries(langPatterns)) {
+                for (const pattern of patterns) {
+                    if (lowerName.includes(pattern)) {
+                        return lang;
+                    }
+                }
+            }
+            
+            return '未知';
+        }
+        
+        // 应用字幕样式
+        function applySubtitleStyle() {
+            const fontSize = document.getElementById('fontSize').value;
+            const fontColor = document.getElementById('fontColor').value;
+            
+            // 通过CSS变量设置字幕样式
+            document.documentElement.style.setProperty('--subtitle-font-size', fontSize);
+            document.documentElement.style.setProperty('--subtitle-color', fontColor);
+            
+            // 直接修改所有字幕轨道的样式
+            if (mediaElement && mediaElement.textTracks) {
+                for (let i = 0; i < mediaElement.textTracks.length; i++) {
+                    if (mediaElement.textTracks[i].mode === 'showing') {
+                        mediaElement.textTracks[i].mode = 'showing'; // 重新启用以应用样式
+                    }
+                }
+            }
+        }
+        
+        // 更新字幕样式
+        function updateSubtitleStyle() {
+            applySubtitleStyle();
+        }
+        
+        // 切换控制菜单显示
+        function toggleControlMenu(menuId) {
+            // 隐藏所有菜单
+            document.getElementById('qualityMenu').style.display = 'none';
+            document.getElementById('audioMenu').style.display = 'none';
+            document.getElementById('subtitleMenu').style.display = 'none';
+            const lm = document.getElementById('lyricsMenu');
+            if (lm) lm.style.display = 'none';
+            
+            // 显示请求的菜单
+            const menu = document.getElementById(menuId);
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                menu.style.display = 'block';
+                
+                // 点击页面其他区域关闭菜单
+                setTimeout(() => {
+                    document.addEventListener('click', function closeMenuOnClick(e) {
+                        if (!menu.contains(e.target) && 
+                            e.target.id !== 'qualityBtn' && 
+                            e.target.id !== 'audioBtn' &&
+                            e.target.id !== 'subtitleBtn' &&
+                            e.target.id !== 'lyricsBtn') {
+                            menu.style.display = 'none';
+                            document.removeEventListener('click', closeMenuOnClick);
+                        }
+                    });
+                }, 0);
+            }
+        }
+        
+        // 更新分辨率显示
+        function updateResolutionDisplay(video) {
+            const resolutionDisplay = document.getElementById('resolutionDisplay');
+            if (resolutionDisplay && video.videoWidth && video.videoHeight) {
+                currentResolution = `${video.videoWidth}×${video.videoHeight}`;
+                let displayText = `分辨率: ${currentResolution}`;
+                
+                // 添加转码信息（如果正在转码）
+                if (transcodeSettings.quality !== 'original') {
+                    displayText += ` | 转码: ${transcodeSettings.quality}`;
+                }
+                
+                resolutionDisplay.textContent = displayText;
+            }
+        }
+        
+        // 应用转码设置
+        function applyTranscodeSettings() {
+            const quality = document.getElementById('transcodeQuality').value;
+            const bitrate = document.getElementById('bitrate').value;
+            const audioCompatibility = document.getElementById('audioCompatibility').value;
+            
+            // 保存设置
+            transcodeSettings = { 
+                quality, 
+                bitrate,
+                audioTrack: currentAudioTrack,
+                audioCompatibility
+            };
+            
+            // 保存用户偏好
+            localStorage.setItem('audioCompatibility', audioCompatibility);
+            
+            // 关闭菜单
+            document.getElementById('qualityMenu').style.display = 'none';
+            
+            // 如果选择原始质量，直接使用原始URL
+            if (quality === 'original') {
+                if (mediaElement) {
+                    mediaElement.src = originalVideoUrl;
+                    updateResolutionDisplay(mediaElement);
+                }
+                return;
+            }
+            
+            // 显示转码指示器
+            showTranscodingIndicator(true);
+            
+            // 获取当前播放位置
+            const currentTime = mediaElement ? mediaElement.currentTime : 0;
+            const isPaused = mediaElement ? mediaElement.paused : false;
+            
+            // 构建转码URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const folder = urlParams.get('folder');
+            const path = urlParams.get('path');
+            
+            const transcodeUrl = getTranscodeUrl(folder, path, quality, bitrate, currentAudioTrack);
+            
+            // 切换到转码后的视频
+            if (mediaElement) {
+                // 保存当前播放状态
+                const wasPlaying = !mediaElement.paused;
+                
+                // 设置超时处理，防止转码失败导致无限等待
+                const transcodeTimeout = setTimeout(() => {
+                    showTranscodingIndicator(false);
+                    showNotification('转码超时，请重试或使用原始质量', true);
+                }, 30000); // 30秒超时
+                
+                // 监听错误事件
+                const errorHandler = function() {
+                    clearTimeout(transcodeTimeout);
+                    mediaElement.removeEventListener('error', errorHandler);
+                    
+                    showTranscodingIndicator(false);
+                    showNotification('转码失败，正在恢复原始质量', true);
+                    
+                    // 恢复原始视频
+                    mediaElement.src = originalVideoUrl;
+                    transcodeSettings.quality = 'original';
+                    document.getElementById('transcodeQuality').value = 'original';
+                };
+                
+                mediaElement.addEventListener('error', errorHandler);
+                
+                // 设置新源
+                mediaElement.src = transcodeUrl;
+                
+                // 尝试恢复播放位置
+                mediaElement.addEventListener('loadedmetadata', function() {
+                    clearTimeout(transcodeTimeout);
+                    mediaElement.removeEventListener('error', errorHandler);
+                    
+                    mediaElement.currentTime = currentTime;
+                    if (wasPlaying) {
+                        mediaElement.play().catch(e => console.log('自动播放被阻止:', e));
+                    }
+                    
+                    // 隐藏转码指示器
+                    showTranscodingIndicator(false);
+                }, { once: true });
+                
+                // 监听加载过程以更新进度条
+                mediaElement.addEventListener('progress', function() {
+                    updateTranscodeProgress(mediaElement);
+                });
+            }
+        }
+        
+        // 获取转码URL（包含音轨参数）
+        function getTranscodeUrl(folder, filePath, quality, bitrate, audioTrack) {
+            const apiUrl = `${SERVER_BASE_URL}/api/transcode`;
+            const params = new URLSearchParams({
+                folder, path: filePath, quality, bitrate,
+                audioTrack, token: AUTH_TOKEN,
+                audioCompatibility: transcodeSettings.audioCompatibility // ← 新增
+            });
+            return `${apiUrl}?${params}`;
+        }
+        
+        // 显示/隐藏转码指示器
+        function showTranscodingIndicator(show) {
+            const indicator = document.getElementById('transcodingIndicator');
+            indicator.style.display = show ? 'block' : 'none';
+        }
+        
+        // 更新转码进度
+        function updateTranscodeProgress(video) {
+            if (video.buffered.length > 0) {
+                const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                const duration = video.duration;
+                const progress = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
+                
+                document.getElementById('transcodeProgress').style.width = `${progress}%`;
+            }
+        }
+        
+        // 处理媒体错误
+        function handleMediaError(error) {
+            console.error('媒体错误:', error);
+            
+            // 如果是安卓设备且出现音频问题，提示用户
+            if (isAndroid && error && error.code === 4) { // MEDIA_ERR_SRC_NOT_SUPPORTED
+                showAudioFixPanel();
+            }
+            
+            if (transcodeSettings.quality !== 'original') {
+                showNotification('转码失败，正在恢复原始质量', true);
+                
+                // 恢复原始视频
+                if (mediaElement) {
+                    mediaElement.src = originalVideoUrl;
+                    transcodeSettings.quality = 'original';
+                    document.getElementById('transcodeQuality').value = 'original';
+                }
+            }
+        }
+        
+        // 获取认证的文件URL
+        function getAuthenticatedUrl(folder, filePath) {
+            const apiUrl = `${SERVER_BASE_URL}/api/stream`;
+            const params = new URLSearchParams({
+                folder: folder,
+                path: filePath,
+                token: AUTH_TOKEN
+            });
+            
+            return `${apiUrl}?${params}`;
+        }
+        
+        // 获取文件类型
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                return 'image';
+            } else if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'webm'].includes(ext)) {
+                return 'video';
+            } else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'].includes(ext)) {
+                return 'audio';
+            } else if (ext === 'cue') {
+                return 'cue'; 
+            } else if (['txt', 'c', 'cpp', 'h', 'hpp', 'py', 'js', 'html', 'css', 'java', 'json', 'xml', 'md', 'php', 'rb', 'go', 'rs', 'ts'].includes(ext)) {
+                return 'text';
+            } else {
+                return 'other';
+            }
+        }
+
+        function getLanguageType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const langMap = {
+                'c': 'c',
+                'h': 'c',
+                'cpp': 'cpp',
+                'hpp': 'cpp',
+                'py': 'python',
+                'js': 'javascript',
+                'html': 'xml',
+                'css': 'css',
+                'java': 'java',
+                'json': 'json',
+                'xml': 'xml',
+                'md': 'markdown',
+                'php': 'php',
+                'rb': 'ruby',
+                'go': 'go',
+                'rs': 'rust',
+                'ts': 'typescript',
+                'txt': 'plaintext'
+            };
+            return langMap[ext] || 'plaintext';
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            const playerContainer = document.getElementById('playerContainer');
+            playerContainer.innerHTML = `
+                <div class="error-container">
+                    <h2><i class="fas fa-exclamation-triangle"></i> 错误</h2>
+                    <p>${message}</p>
+                    <button class="close-btn" onclick="window.close()" style="margin-top: 15px;">
+                        <i class="fas fa-times"></i> 关闭
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 显示通知
+        function showNotification(message, isError = false) {
+            // 可以在这里实现一个简单的通知系统
+            console.log(message);
+            alert(message); // 简单实现，可以使用更优雅的通知系统
+        }
+
+        // 将 "mm:ss:ff"（帧，每秒75帧）转为秒
+        function cueTimeToSeconds(t) {
+        // 可能是 "01:23:45" 或 "01:23:45.67"；标准 CUE 为 mm:ss:ff（ff 0-74）
+        const m = t.trim().match(/^(\d+):(\d+):(\d+)$/);
+        if (!m) return 0;
+        const mm = parseInt(m[1], 10) || 0;
+        const ss = parseInt(m[2], 10) || 0;
+        const ff = parseInt(m[3], 10) || 0;
+        return mm * 60 + ss + ff / 75;
+        }
+
+        // 解析 CUE 文本：只取常用字段 FILE / TRACK / TITLE / PERFORMER / INDEX 01
+        function parseCue(text) {
+        const lines = text.split(/\r?\n/);
+        let currentFile = null;
+        let album = { title: '', performer: '' };
+        const tracks = [];
+        let curTrack = null;
+
+        for (let raw of lines) {
+            const line = raw.trim();
+            if (!line) continue;
+
+            if (line.startsWith('REM')) continue;
+
+            // FILE "xxx.flac" WAVE
+            if (line.toUpperCase().startsWith('FILE ')) {
+            const m = line.match(/^FILE\s+"(.+?)"\s+.+$/i) || line.match(/^FILE\s+(.+?)\s+.+$/i);
+            if (m) currentFile = m[1];
+            }
+            // PERFORMER "xxx"
+            else if (line.toUpperCase().startsWith('PERFORMER ')) {
+            const m = line.match(/^PERFORMER\s+"(.+?)"$/i) || line.match(/^PERFORMER\s+(.+?)$/i);
+            if (curTrack) curTrack.performer = m ? m[1] : '';
+            else album.performer = m ? m[1] : '';
+            }
+            // TITLE "xxx"
+            else if (line.toUpperCase().startsWith('TITLE ')) {
+            const m = line.match(/^TITLE\s+"(.+?)"$/i) || line.match(/^TITLE\s+(.+?)$/i);
+            if (curTrack) curTrack.title = m ? m[1] : '';
+            else album.title = m ? m[1] : '';
+            }
+            // TRACK nn AUDIO
+            else if (line.toUpperCase().startsWith('TRACK ')) {
+            const m = line.match(/^TRACK\s+(\d+)\s+(.+)$/i);
+            if (m) {
+                curTrack = { no: parseInt(m[1], 10), title: '', performer: '', index: null };
+                tracks.push(curTrack);
+            }
+            }
+            // INDEX 01 mm:ss:ff
+            else if (line.toUpperCase().startsWith('INDEX 01')) {
+            const m = line.match(/^INDEX\s+01\s+(\d{2}:\d{2}:\d{2})$/i);
+            if (m && curTrack) curTrack.index = cueTimeToSeconds(m[1]);
+            }
+        }
+
+        // 过滤无 INDEX 的
+        const validTracks = tracks.filter(t => typeof t.index === 'number');
+
+        // 计算每一首的 end：下一首的 index 即上一首的 end，最后一首 end = null（播到文件末尾）
+        for (let i = 0; i < validTracks.length; i++) {
+            const start = validTracks[i].index;
+            const end = (i + 1 < validTracks.length) ? validTracks[i + 1].index : null;
+            validTracks[i].start = start;
+            validTracks[i].end = end;
+        }
+
+        return { file: currentFile, album, tracks: validTracks };
+        }
+
+        // 将 CUE 数据整理成渲染需要的最小字段
+        function buildCueTrackList(cue) {
+        return cue.tracks.map(t => ({
+            title: t.title || `Track ${t.no}`,
+            performer: t.performer || cue.album.performer || '',
+            start: t.start,
+            end: t.end
+        }));
+        }
+
+        function renderCuePlaylist(list) {
+        const panel = document.getElementById('playlistPanel');
+        const box = document.getElementById('playlist');
+        const meta = document.getElementById('cueMeta');
+        panel.style.display = 'block';
+
+        const alb = cueData.album || {};
+        meta.innerHTML = `
+            <div>专辑：${alb.title || '未知'}</div>
+            <div>演出：${alb.performer || '未知'}</div>
+        `;
+
+        box.innerHTML = list.map((t, i) => `
+            <div class="track-item" data-idx="${i}">
+            <div>${t.title}${t.performer ? ' - ' + t.performer : ''}</div>
+            <div class="track-time">${formatTime(t.start)} ${t.end!=null ? ' - ' + formatTime(t.end) : ''}</div>
+            </div>
+        `).join('');
+
+        // 点击播放
+        box.querySelectorAll('.track-item').forEach(el => {
+            el.addEventListener('click', () => {
+            const idx = Number(el.getAttribute('data-idx'));
+            playCueIndex(idx);
+            });
+        });
+        }
+
+        function playCueIndex(i) {
+            if (!mediaElement || !cueTracks[i]) return;
+            currentCueIndex = i;
+            // 高亮
+            document.querySelectorAll('#playlist .track-item').forEach((el, k) => {
+                el.classList.toggle('active', k === i);
+            });
+            // 定位
+            lyricsState.offsetSec = cueTracks[i].start || 0;
+            lyricsState.currentIdx = -1; // 让高亮从头重新计算
+            mediaElement.currentTime = cueTracks[i].start + 0.01;
+            mediaElement.play().catch(()=>{});
+        }
+
+        function formatTime(sec) {
+        if (sec == null) return 'EOF';
+        const s = Math.floor(sec % 60);
+        const m = Math.floor(sec / 60);
+        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function stopVisualization() {
+            if (viz.animId) cancelAnimationFrame(viz.animId);
+            viz.animId = null;
+            viz.drawing = false;
+
+            // ★ 新增：恢复 <audio> 直出
+            if (mediaElement) mediaElement.muted = false;
+
+            // 断开分析链与 AudioContext 输出
+            stopVisualizationNodes(false);
+        }
+
+        function stopVisualizationNodes() {
+            try {
+                if (viz.splitter) viz.splitter.disconnect();
+                if (viz.analyser) viz.analyser.disconnect();
+                if (viz.analyserR) viz.analyserR.disconnect();
+                // 断开 srcNode 的所有输出（包括之前可能连接过的链路）
+                if (viz.srcNode) viz.srcNode.disconnect();
+            } catch(e) {}
+
+            // 仅清理分析链路，保留 srcNode 与 boundMedia（用于下次复用）
+            viz.splitter = viz.analyser = viz.analyserR = null;
+            // 不要：viz.srcNode = null;
+            // 不要：viz.boundMedia = null;
+        }
+
+        async function startVisualization() {
+            const canvas = document.getElementById('vizCanvas');
+            if (!canvas || !mediaElement || mediaElement.nodeName.toLowerCase() !== 'audio') return;
+
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!viz.audioCtx || viz.audioCtx.state === 'closed') {
+                viz.audioCtx = new AC();
+            }
+            try { await viz.audioCtx.resume(); } catch {}
+
+            // 如果切换了媒体（比如从视频切到 .cue 的 <audio>），允许重建一次 source
+            if (viz.boundMedia !== mediaElement) {
+                // 断开旧连接，但保留旧 audioCtx
+                try { if (viz.srcNode) viz.srcNode.disconnect(); } catch {}
+                viz.srcNode = null;
+                viz.boundMedia = mediaElement;
+            }
+
+            // 只在第一次为这个 mediaElement 创建 source
+            if (!viz.srcNode) {
+                try {
+                viz.srcNode = viz.audioCtx.createMediaElementSource(mediaElement);
+                } catch (e) {
+                console.error('createMediaElementSource 失败：', e);
+                // 如果这里抛 already connected 的错误，说明早先建过，就直接继续用旧的链路
+                return;
+                }
+            }
+
+            // 重建分析链路
+            viz.splitter = viz.audioCtx.createChannelSplitter(2);
+            viz.analyser  = viz.audioCtx.createAnalyser();
+            viz.analyserR = viz.audioCtx.createAnalyser();
+            viz.analyser.fftSize  = 2048;
+            viz.analyserR.fftSize = 2048;
+
+            // src -> splitter -> (L->analyser, R->analyserR)
+            viz.srcNode.connect(viz.splitter);
+            viz.splitter.connect(viz.analyser,  0);
+            viz.splitter.connect(viz.analyserR, 1);
+
+            viz.srcNode.connect(viz.audioCtx.destination);
+            // if (mediaElement) mediaElement.muted = true;
+
+            // ⚠ 不接回 destination，避免双路播放；声音由 <audio> 自己负责输出
+
+            // 画布
+            viz.ctx = canvas.getContext('2d');
+
+            if (!viz.drawing) {
+                viz.drawing = true;
+                drawViz();
+            }
+        }
+
+        function drawViz() {
+            if (!viz.drawing) return;
+
+            const canvas = document.getElementById('vizCanvas');
+            if (!canvas) return;
+
+            const ctx = viz.ctx || canvas.getContext('2d');
+            viz.ctx = ctx;
+
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            if (viz.mode === 'spectrum') {
+                if (!viz.analyser) {
+                    viz.animId = requestAnimationFrame(drawViz);
+                    return;
+                }
+                const n = viz.analyser.frequencyBinCount;
+                const data = new Uint8Array(n);
+                viz.analyser.getByteFrequencyData(data);
+
+                // 控制柱子数量，避免太密导致性能/不可见
+                const barCount = Math.min(n, Math.floor(W / 3));
+                const step = Math.floor(n / barCount) || 1;
+                const barW = W / barCount;
+
+                for (let i = 0, k = 0; i < n && k < barCount; i += step, k++) {
+                    const v = data[i] / 255;
+                    const h = Math.max(1, v * (H - 8));
+                    const x = k * barW;
+                    ctx.fillStyle = '#4c8bf5';
+                    ctx.fillRect(x, H - h, barW * 0.9, h);
+                }
+            } else if (viz.mode === 'lissajous') {
+                if (!viz.analyser || !viz.analyserR) {
+                    viz.animId = requestAnimationFrame(drawViz);
+                    return;
+                }
+                
+                const bufferLength = 2048; // 增加采样点数以获得更平滑的曲线
+                const leftData = new Uint8Array(bufferLength);
+                const rightData = new Uint8Array(bufferLength);
+                
+                viz.analyser.getByteTimeDomainData(leftData);
+                viz.analyserR.getByteTimeDomainData(rightData);
+                
+                // 设置绘制样式
+                ctx.strokeStyle = '#00ff41';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                // 中心点坐标
+                const centerX = W / 2;
+                const centerY = H / 2;
+                
+                // 缩放因子，使图形适合画布
+                const scale = Math.min(W, H) * 0.4;
+                
+                // 绘制李萨如图形
+                for (let i = 0; i < bufferLength; i++) {
+                    // 将数据从0-255转换为-1到1的范围
+                    const x = (leftData[i] / 128.0 - 1.0) * scale;
+                    const y = (rightData[i] / 128.0 - 1.0) * scale;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(centerX + x, centerY + y);
+                    } else {
+                        ctx.lineTo(centerX + x, centerY + y);
+                    }
+                }
+                
+                ctx.stroke();
+                
+                // 添加参考网格
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                
+                // 水平线
+                ctx.beginPath();
+                ctx.moveTo(0, centerY);
+                ctx.lineTo(W, centerY);
+                ctx.stroke();
+                
+                // 垂直线
+                ctx.beginPath();
+                ctx.moveTo(centerX, 0);
+                ctx.lineTo(centerX, H);
+                ctx.stroke();
+                
+                // 圆形参考线
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, scale, 0, 2 * Math.PI);
+                ctx.stroke();
+            } else if (viz.mode === 'xyWave') {
+                // 修复xyWave模式 - 分别显示左右声道波形
+                if (!viz.analyser || !viz.analyserR) {
+                    viz.animId = requestAnimationFrame(drawViz);
+                    return;
+                }
+                
+                const n = 1024;
+                const leftChannel = new Uint8Array(n);
+                const rightChannel = new Uint8Array(n);
+                viz.analyser.getByteTimeDomainData(leftChannel);
+                viz.analyserR.getByteTimeDomainData(rightChannel);
+                
+                const halfH = H / 2;
+                const quarterH = H / 4;
+                
+                // 清除画布
+                ctx.clearRect(0, 0, W, H);
+                
+                // 绘制分隔线
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.moveTo(0, halfH);
+                ctx.lineTo(W, halfH);
+                ctx.moveTo(0, halfH * 3);
+                ctx.lineTo(W, halfH * 3);
+                ctx.stroke();
+                
+                // 绘制左声道波形（上半部分）
+                ctx.strokeStyle = '#ff6b6b'; // 红色表示左声道
+                ctx.beginPath();
+                for (let i = 0; i < n; i++) {
+                    const x = (i / n) * W;
+                    const y = (leftChannel[i] / 255) * quarterH / 4;
+                    if (i === 0) {
+                        ctx.moveTo(x, quarterH - y);
+                    } else {
+                        ctx.lineTo(x, quarterH - y);
+                    }
+                }
+                ctx.stroke();
+                
+                // 绘制右声道波形（下半部分）
+                ctx.strokeStyle = '#4ecdc4'; // 青色表示右声道
+                ctx.beginPath();
+                for (let i = 0; i < n; i++) {
+                    const x = (i / n) * W;
+                    const y = (rightChannel[i] / 255) * quarterH / 4;
+                    if (i === 0) {
+                        ctx.moveTo(x, quarterH * 3 - y);
+                    } else {
+                        ctx.lineTo(x, quarterH * 3 - y);
+                    }
+                }
+                ctx.stroke();
+                
+                // 添加标题
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('左声道 (X)', 10, 15);
+                ctx.fillText('右声道 (Y)', 10, quarterH * 2 + 15);
+            }
+
+            viz.animId = requestAnimationFrame(drawViz);
+        }
+
+        // 将 "[mm:ss.xx]" / "[mm:ss.xxx]" 转为秒
+        function _tagToSec(tag) {
+        const m = tag.match(/\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/);
+        if (!m) return null;
+        const mm = +m[1], ss = +m[2], ms = +(m[3] || 0);
+        return mm * 60 + ss + ms / 1000;
+        }
+
+        // 解析 LRC 或纯文本
+        function parseLRC(raw) {
+            const lines = [];
+            const rows = (raw || '').replace(/\r/g,'').split('\n');
+            let offsetMs = 0; // ← 新增
+
+            for (const r0 of rows) {
+                const r = r0.trim();
+                if (!r) continue;
+
+                // 识别 [offset:+/-毫秒]
+                const mOff = r.match(/^\[offset:([+-]?\d+)\]$/i);
+                if (mOff) { offsetMs = parseInt(mOff[1], 10) || 0; continue; }
+
+                // 可能有多个时间标签：[mm:ss.xx][mm:ss.xxx]歌词
+                const tags = r.match(/\[(\d{1,2}:\d{1,2}(?:\.\d{1,3})?)\]/g);
+                const text = r.replace(/\[(\d{1,2}:\d{1,2}(?:\.\d{1,3})?)\]/g, '').trim();
+
+                if (tags && tags.length) {
+                for (const tg of tags) {
+                    const t = _tagToSec(tg);
+                    if (t != null) lines.push({ t: Math.max(0, t + offsetMs/1000), text }); // ← 套用 offset
+                }
+                } else {
+                lines.push({ t: null, text: r });
+                }
+            }
+
+            const withTime = lines.filter(x => x.t != null).sort((a,b)=>a.t-b.t);
+            const noTime   = lines.filter(x => x.t == null);
+            return { lines: withTime.concat(noTime), hasTime: withTime.length > 0 };
+        }
+
+        function setLyrics(lrcText, source='online') {
+            const parsed = parseLRC(lrcText || '');
+            lyricsState.lines = parsed.lines;
+            lyricsState.hasTime = parsed.hasTime;
+            lyricsState.source = source;
+            lyricsState.currentIdx = -1;
+            renderLyricsBox();
+            bindLyricsTimeupdate();
+        }
+
+        function renderLyricsBox() {
+        const box = document.getElementById('lyricsBox');
+        if (!box) return;
+        if (!lyricsState.lines.length) {
+            box.innerHTML = `<div class="line">（暂无歌词）</div>`;
+            return;
+        }
+        box.innerHTML = lyricsState.lines.map((ln,i) => 
+            `<div class="line" data-i="${i}" data-t="${ln.t==null?'':ln.t}">${ln.text||''}</div>`
+        ).join('');
+        }
+
+        // 根据当前时间更新高亮并滚动到中间
+        function updateLyricsHighlight(timeSec) {
+            if (!lyricsState.lines.length) return;
+            // 无时间戳：显示第一行为“高亮”
+            if (!lyricsState.hasTime) {
+                if (lyricsState.currentIdx !== 0) {
+                lyricsState.currentIdx = 0;
+                const box = document.getElementById('lyricsBox');
+                if (!box) return;
+                box.querySelectorAll('.line').forEach(el => el.classList.remove('active'));
+                const el = box.querySelector('.line[data-i="0"]');
+                if (el) { el.classList.add('active'); el.scrollIntoView({ block:'center' }); }
+                }
+                return;
+            }
+
+            // 找到 <= 当前时间的最后一条
+            let idx = lyricsState.currentIdx;
+            if (idx < 0 || (lyricsState.lines[idx] && lyricsState.lines[idx].t > timeSec)) {
+                idx = 0;
+            }
+            while (idx + 1 < lyricsState.lines.length && lyricsState.lines[idx+1].t != null && lyricsState.lines[idx+1].t <= timeSec) {
+                idx++;
+            }
+            if (idx !== lyricsState.currentIdx) {
+                lyricsState.currentIdx = idx;
+                const box = document.getElementById('lyricsBox');
+                if (!box) return;
+                box.querySelectorAll('.line').forEach(el => el.classList.remove('active'));
+                const el = box.querySelector(`.line[data-i="${idx}"]`);
+                if (el) { el.classList.add('active'); el.scrollIntoView({ block:'center', behavior:'smooth' }); }
+            }
+        }
+
+        function bindLyricsTimeupdate() {
+            if (!mediaElement || mediaElement.nodeName.toLowerCase() !== 'audio') return;
+            // 防止重复绑定：先移除再绑定
+            mediaElement.removeEventListener('timeupdate', _lyricsTimeupdateHandler);
+            mediaElement.addEventListener('timeupdate', _lyricsTimeupdateHandler);
+        }
+        function _lyricsTimeupdateHandler() {
+            // updateLyricsHighlight(mediaElement.currentTime || 0);
+
+            const base = lyricsState.offsetSec || 0;
+            let t = (mediaElement.currentTime || 0) - base;
+            if (t < 0) t = 0;
+            updateLyricsHighlight(t);
+        }
+
+        /** 自动获取歌词（优先本地旁挂，其次在线） */
+        async function autoFetchOnlineLyrics(opts={}) {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const folder = urlParams.get('folder');
+                const path = urlParams.get('path');
+                const name = urlParams.get('name');
+
+                // 1) 尝试本地旁挂 .lrc/.txt
+                const localOk = await tryLoadLocalLyrics(folder, path, name);
+                if (localOk) return;
+
+                // 2) 在线自动匹配（可带上 CUE 当前曲目信息）
+                const p = new URLSearchParams({
+                folder, path, token: AUTH_TOKEN
+                });
+                if (opts.title)  p.append('title',  opts.title);
+                if (opts.artist) p.append('artist', opts.artist);
+
+                const r = await fetch(`${SERVER_BASE_URL}/api/lyrics/auto?${p}`);
+                const data = await r.json();
+                if (data.success && data.found && data.lrc) {
+                setLyrics(data.lrc, 'online');
+                // notifyLyricSource(`已自动加载在线歌词：${data.title || ''} ${data.artist ? ' - '+data.artist : ''}`);
+                } else {
+                // notifyLyricSource('未找到自动匹配歌词');
+                }
+            } catch (e) {
+                console.error(e);
+                notifyLyricSource('自动获取歌词失败：' + e.message, true);
+            }
+        }
+
+        /** 手动搜索（歌词菜单 -> 在线歌词） */
+        async function manualSearchOnlineLyrics() {
+            const title  = (document.getElementById('lyricTitle').value || '').trim();
+            const artist = (document.getElementById('lyricArtist').value || '').trim();
+            const box = document.getElementById('onlineLyricsResults');
+            if (!title && !artist) { box.innerHTML = '<div class="no-options">请输入歌曲名或歌手</div>'; return; }
+
+            box.innerHTML = '<div class="no-options">正在搜索...</div>';
+            try {
+                const p = new URLSearchParams({ title, artist, token: AUTH_TOKEN });
+                const r = await fetch(`${SERVER_BASE_URL}/api/lyrics/search?${p}`);
+                const data = await r.json();
+
+                if (!data.success || !data.results || data.results.length === 0) {
+                box.innerHTML = '<div class="no-options">没有搜索到匹配歌词</div>';
+                return;
+                }
+                let html = '';
+                data.results.forEach((it, idx) => {
+                const safeTitle = (it.title || '').replace(/'/g,"&#39;");
+                const safeArtist = (it.artist || '').replace(/'/g,"&#39;");
+                html += `
+                    <div class="control-option" onclick="loadOnlineLyrics('${safeTitle}','${safeArtist}')">
+                    <i class="fas fa-music"></i> ${safeTitle}${it.artist ? ' - ' + it.artist : ''}
+                    ${it.hasSynced ? ' <span style="opacity:.8;font-size:.85em;">（含时间轴）</span>' : ''}
+                    </div>`;
+                });
+                box.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+                box.innerHTML = '<div class="no-options">搜索失败：' + e.message + '</div>';
+            }
+        }
+
+        /** 下载并加载某条在线歌词 */
+        async function loadOnlineLyrics(title, artist) {
+            try {
+                const p = new URLSearchParams({ title, artist, token: AUTH_TOKEN });
+                const r = await fetch(`${SERVER_BASE_URL}/api/lyrics/get?${p}`);
+                if (!r.ok) throw new Error(`服务器返回 ${r.status}`);
+                const lrc = await r.text();
+                setLyrics(lrc || '', 'manual');
+                notifyLyricSource(`已加载：${title}${artist ? ' - '+artist : ''}`);
+            } catch (e) {
+                console.error(e);
+                showNotification('下载歌词失败：' + e.message, true);
+            }
+        }
+
+        /** 读取旁挂歌词（与媒体同名的 .lrc/.txt） */
+        async function tryLoadLocalLyrics(folder, filePath, fileName) {
+            const baseName = fileName.replace(/\.[^/.]+$/, "");
+            const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+            const exts = ['.lrc', '.txt'];
+            for (const ext of exts) {
+                const p = dir ? `${dir}/${baseName}${ext}` : `${baseName}${ext}`;
+                try {
+                const url = getAuthenticatedUrl(folder, p);
+                const head = await fetch(url, { method:'HEAD' });
+                if (!head.ok) continue;
+                const txt = await fetch(url).then(r => r.text());
+                if (txt && txt.trim()) {
+                    setLyrics(txt, 'local');
+                    notifyLyricSource(`已加载本地歌词：${baseName}${ext}`);
+                    return true;
+                }
+                } catch(_) {}
+            }
+            return false;
+        }
+
+        function notifyLyricSource(msg, err=false) {
+            console.log('[Lyrics]', msg);
+            // 复用已有的提示
+            try { showNotification(msg, !!err); } catch {}
+        }
+
+        /* === 将歌词与现有生命周期打通 === */
+
+        // 音频文件：元数据就绪后，尝试加载歌词
+        (function hookAudioLyrics() {
+        const _origAudio = playFile;
+        playFile = async function(folder, filePath, fileName) {
+            await _origAudio(folder, filePath, fileName);
+            // 仅对 audio/cue 场景：显示浮条（已有逻辑），并尝试歌词
+            if (mediaElement && mediaElement.nodeName.toLowerCase() === 'audio') {
+            // 自动加载（本地 → 在线）
+            autoFetchOnlineLyrics();
+            lyricsState.offsetSec = (currentCueIndex >= 0 && cueTracks && cueTracks[currentCueIndex])
+            ? (cueTracks[currentCueIndex].start || 0)
+            : 0;
+            // 绑定 timeupdate（若已绑定会覆盖）
+            bindLyricsTimeupdate();
+            }
+        }
+        })();
+
+        // CUE 切曲：在 playCueIndex 之后，按曲目信息自动拉取歌词
+        (function hookCueLyrics() {
+        if (typeof playCueIndex !== 'function') return;
+            const _origPlay = playCueIndex;
+            playCueIndex = function(i) {
+            _origPlay(i);
+            if (cueTracks[i]) {
+            const t = cueTracks[i];
+            autoFetchOnlineLyrics({ title: t.title, artist: t.performer });
+            }
+        }
+        })();
+
+    </script>
+</body>
+</html>

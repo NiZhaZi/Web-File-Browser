@@ -1,0 +1,1 @@
+netsh advfirewall firewall add rule name="Node.js API" dir=in action=allow protocol=TCP localport=3000
